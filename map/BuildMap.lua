@@ -27,6 +27,8 @@ local map = Instance.new("Folder")
 map.Name = "Map"
 map.Parent = workspace
 
+print("[BuildMap] Starting...")
+
 local function folder(name, parent)
 	local f = Instance.new("Folder")
 	f.Name = name
@@ -158,6 +160,18 @@ local function striped(name, width, depth, cf, parent, c1, c2)
 	end
 end
 
+-- Runs one part of the build. If it breaks, the error says exactly which part.
+local failed = 0
+local function section(name, fn)
+	local ok, err = pcall(fn)
+	if ok then
+		print("[BuildMap] OK: " .. name)
+	else
+		failed += 1
+		warn("[BuildMap] FAILED in " .. name .. ": " .. tostring(err))
+	end
+end
+
 -- Layout slots: 8 bases (2 per side), numbered in order around the pond.
 local slots = {}
 for s = 0, 3 do
@@ -183,6 +197,7 @@ local function clear(x, z)
 	return true
 end
 
+section("Ground", function()
 -- GROUND ----------------------------------------------------------------
 ring("Shore", 120, 150, 0, -50, SAND, fGround)
 ring("GroundBase", 150, HALF, -4, -50, GRASS1, fGround)
@@ -205,6 +220,8 @@ for s = 0, 3 do
 	p.Material = Enum.Material.Slate
 end
 
+end)
+section("Pond water", function()
 -- POND ------------------------------------------------------------------
 ring("Step2", 100, HALF, -50, -150, Color3.fromRGB(80, 118, 140), fGround)
 ring("Step3", 80, HALF, -150, -250, Color3.fromRGB(50, 85, 118), fGround)
@@ -246,6 +263,8 @@ for ix = -5, 6 do
 	end
 end
 
+end)
+section("Underwater + buoys", function()
 -- Depth markers (1 stud = 2m)
 for y, z in pairs({ [-50] = 110, [-150] = 90, [-250] = 70 }) do
 	local m = deco(mk("DepthMarker_" .. math.abs(y), Vector3.new(4, 0.2, 4),
@@ -329,6 +348,8 @@ for _, sx in ipairs({ -1, 1 }) do
 	end
 end
 
+end)
+section("Castle walls", function()
 -- CASTLE WALLS ----------------------------------------------------------
 mk("Wall_N", Vector3.new(2 * HALF + WALL_T, WALL_H, WALL_T), CFrame.new(0, WALL_H / 2, HALF), WALL, nil, nil, fWalls)
 mk("Wall_S", Vector3.new(2 * HALF + WALL_T, WALL_H, WALL_T), CFrame.new(0, WALL_H / 2, -HALF), WALL, nil, nil, fWalls)
@@ -384,6 +405,7 @@ for _, sx in ipairs({ -1, 1 }) do
 	end
 end
 
+end)
 -- DOCKS -----------------------------------------------------------------
 -- Builds a dock along local Z. The deck part is named "Dock" so the game can find it.
 local function buildDock(cf, width, parent)
@@ -409,6 +431,7 @@ local function buildDock(cf, width, parent)
 	return deck
 end
 
+section("Bases", function()
 -- BASES (each one is a Plot model with its own dock) --------------------
 for i, sl in ipairs(slots) do
 	local sideCF = CFrame.Angles(0, sl.yaw, 0)
@@ -489,6 +512,8 @@ for i, sl in ipairs(slots) do
 	buildDock(sideCF * CFrame.new(sl.x, 1.5, DOCK_Z), 10, plot)
 end
 
+end)
+section("Public piers", function()
 -- Public piers in the middle of each side
 for s = 0, 3 do
 	local m = Instance.new("Model")
@@ -498,6 +523,8 @@ for s = 0, 3 do
 	billboard(deck, "Public Pier", 5, 130, 34, 160)
 end
 
+end)
+section("Town", function()
 -- TOWN (spawn, shop, market) --------------------------------------------
 local spawn = Instance.new("SpawnLocation")
 spawn.Name = "Spawn"
@@ -596,6 +623,8 @@ for s = 0, 3 do
 	end
 end
 
+end)
+section("Trees and flowers", function()
 -- TREES, BUSHES, FLOWERS, ROCKS -------------------------------------------
 local trng = Random.new(21)
 local trees, tries = 0, 0
@@ -647,6 +676,8 @@ while rocks < 22 and rtries < 600 do
 	end
 end
 
+end)
+section("Lighting", function()
 -- LIGHTING --------------------------------------------------------------
 local L = game:GetService("Lighting")
 L.ClockTime = 14.5
@@ -675,4 +706,9 @@ rays.Intensity = 0.04
 rays.Spread = 0.6
 rays.Parent = L
 
-print("Map v4 built: 8 bases with private docks, 4 public piers, rod shop, fish market.")
+end)
+if failed == 0 then
+	print("[BuildMap] Map v4 built: 8 bases with private docks, 4 public piers, rod shop, fish market.")
+else
+	warn("[BuildMap] Finished with " .. failed .. " problem(s). Send a screenshot of the orange lines above.")
+end
