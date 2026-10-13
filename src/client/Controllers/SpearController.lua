@@ -1080,7 +1080,15 @@ local function updateHotbar()
 		hotbar.Art:ClearAllChildren()
 		local g = id and GunData.ById[id]
 		if g then
-			UI.GunViewport(hotbar.Art, g, { Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = 3 }, true)
+			local vf = UI.GunViewport(hotbar.Art, g, { Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = 3 }, true)
+			-- tilt the gun corner to corner and move in, so it fills the little square
+			local model = vf:FindFirstChildOfClass("Model")
+			local center = Vector3.new(0, 0.28, -2.28) -- middle of every speargun model
+			if model and vf.CurrentCamera then
+				model:PivotTo(CFrame.new(center) * CFrame.Angles(-0.62, 0, 0) * CFrame.new(-center))
+				local look = center + Vector3.new(0, 0.5, 0)
+				vf.CurrentCamera.CFrame = CFrame.lookAt(look + Vector3.new(10.5, 0.4, 0), look)
+			end
 		end
 	end
 	if held ~= hotbar.Held then
