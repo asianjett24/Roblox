@@ -150,6 +150,58 @@ local function flash(e)
 	end)
 end
 
+-- A little health bar over creatures that take more than one hit.
+local function showHealth(e, hp)
+	if not e.Rig then
+		return
+	end
+	local body = e.Rig.Groups.body or e.Rig.Groups.seg0
+	local anchor = body and body.Parts[1]
+	if not anchor then
+		return
+	end
+	local bb = e.HealthGui
+	if not bb or not bb.Parent then
+		bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.fromOffset(84, 16)
+		bb.StudsOffsetWorldSpace = Vector3.new(0, e.Rig.L * 0.3 + 1.5, 0)
+		bb.AlwaysOnTop = true
+		bb.LightInfluence = 0
+		bb.MaxDistance = 140
+		bb.Adornee = anchor
+		local back = Instance.new("Frame")
+		back.Size = UDim2.fromScale(1, 1)
+		back.BackgroundColor3 = Color3.fromRGB(22, 26, 48)
+		back.Parent = bb
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(1, 0)
+		corner.Parent = back
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 2
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		stroke.Parent = back
+		local fill = Instance.new("Frame")
+		fill.Name = "Fill"
+		fill.BackgroundColor3 = Color3.fromRGB(255, 80, 70)
+		fill.Size = UDim2.fromScale(1, 1)
+		fill.Parent = back
+		local c2 = Instance.new("UICorner")
+		c2.CornerRadius = UDim.new(1, 0)
+		c2.Parent = fill
+		bb.Parent = anchor
+		e.HealthGui = bb
+		e.HealthFill = fill
+	end
+	TweenService:Create(e.HealthFill, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Size = UDim2.fromScale(math.max(hp, 0) / math.max(e.MaxHP or 1, 1), 1) }):Play()
+	local token = os.clock()
+	e.HealthToken = token
+	task.delay(4, function()
+		if e.HealthToken == token and bb.Parent then
+			bb:Destroy()
+		end
+	end)
+end
+
 local function updateFish(id, seg, hp)
 	local e = fish[id]
 	if not e then
@@ -158,6 +210,7 @@ local function updateFish(id, seg, hp)
 	e.Seg = seg
 	if hp < e.HP then
 		flash(e)
+		showHealth(e, hp)
 		e.HurtUntil = os.clock() + 4
 	end
 	e.HP = hp

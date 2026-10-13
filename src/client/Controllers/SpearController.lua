@@ -178,7 +178,9 @@ local function placeSpear(pieces, cf: CFrame)
 end
 
 -- Fires a spear. mine = this player's own shot (does hit detection and tells the server).
-local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muzzle: Attachment?)
+-- rayStart: where hit testing begins on the first frame (the camera for your own first-person
+-- shots, so a fish between your face and the muzzle still gets hit).
+local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muzzle: Attachment?, rayStart: Vector3?)
 	local pieces, tail, trail = buildSpear(gunInfo)
 	if muzzle then
 		local line = Instance.new("Beam")
@@ -195,6 +197,7 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 
 	local params = worldParams()
 	local pos, traveled = origin, 0
+	local testFrom = rayStart
 	local range = gunInfo and gunInfo.Range or 50
 	local state, stuckId, stuckOffset, timer = "flying", nil, nil, 0
 	local spearCF = CFrame.lookAt(origin, origin + dir)
@@ -211,13 +214,17 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 				local a = (pos.Y - WATER) / math.max(pos.Y - nextPos.Y, 1e-3)
 				burst(pos:Lerp(nextPos, a), 12, Color3.fromRGB(210, 240, 255), 10)
 			end
+			local from = testFrom or pos
+			testFrom = nil
 			local wall = workspace:Raycast(pos, nextPos - pos, params)
 			local wallDist = if wall then (wall.Position - pos).Magnitude else math.huge
 			local best, bestDist = nil, wallDist
+			local span = (nextPos - from).Magnitude
+			local lead = (pos - from).Magnitude -- extra distance tested behind the spear (first frame only)
 			for _, target in Renderer.GetTargets() do
-				local d, s = FishPath.SegmentDistance(pos, nextPos, target.Head, target.Tail)
-				if d <= target.Radius + 0.45 and s * stepLen < bestDist then
-					best, bestDist = target, s * stepLen
+				local d, s = FishPath.SegmentDistance(from, nextPos, target.Head, target.Tail)
+				if d <= target.Radius + 0.45 and s * span - lead < bestDist then
+					best, bestDist = target, math.max(0, s * span - lead)
 				end
 			end
 			if best then
@@ -734,7 +741,7 @@ local function fire()
 	setThirdPersonSpear(false)
 	setVmSpear(false)
 	Remotes.Shoot:FireServer(origin, dir)
-	launch(origin, dir, gun, true, muzzle)
+	launch(origin, dir, gun, true, muzzle, if Dive.FirstPerson then camera.CFrame.Position else nil)
 	if Audio then
 		Audio.Play("Fire")
 	end

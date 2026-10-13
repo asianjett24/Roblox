@@ -238,6 +238,33 @@ function UIController.SetCarry(item)
 	end
 end
 
+-- Coins burst out of a button and fly into the coin counter.
+local fxGui
+function UIController.CoinBurst(from: GuiObject, count: number?)
+	if not fxGui or not coinPill then
+		return
+	end
+	local a = from.AbsolutePosition + from.AbsoluteSize / 2
+	local b = coinPill.AbsolutePosition + Vector2.new(24, coinPill.AbsoluteSize.Y / 2)
+	local scale = UIController.Scale and UIController.Scale.Scale or 1
+	for i = 1, count or 14 do
+		local c = icon("coin", math.floor(34 * scale), nil, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(a.X, a.Y), Parent = fxGui })
+		local spread = Vector2.new(math.random(-90, 90), math.random(-110, -20)) * scale
+		local mid = a + spread
+		tween(c, 0.28, { Position = UDim2.fromOffset(mid.X, mid.Y) }, Enum.EasingStyle.Quad)
+		task.delay(0.28 + i * 0.03, function()
+			tween(c, 0.45, { Position = UDim2.fromOffset(b.X, b.Y) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			task.wait(0.45)
+			c:Destroy()
+			local s = coinPill:FindFirstChildOfClass("UIScale")
+			if s then
+				s.Scale = 1.12
+				tween(s, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
+			end
+		end)
+	end
+end
+
 -- Panels -------------------------------------------------------------------------------------
 local function setOpen(name: string?)
 	openName = name
@@ -435,6 +462,9 @@ local function buildBag()
 	sell.Activated:Connect(function()
 		local ok, msg = Remotes.SellAll:InvokeServer()
 		UIController.Notify(msg, if ok then "success" else "error")
+		if ok then
+			UIController.CoinBurst(sell, 16)
+		end
 	end)
 	local lastKey = nil
 
@@ -901,6 +931,7 @@ function UIController.Init()
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
 	gui = screen
 	UIController.Scale = uiScale
+	fxGui = make("ScreenGui", { Name = "CoinFX", ResetOnSpawn = false, DisplayOrder = 6, Parent = player:WaitForChild("PlayerGui") })
 
 	-- Top bar: coins (+ opens the Pearl Shop) and bag
 	local top = make("Frame", { Size = UDim2.fromOffset(460, 52), Position = UDim2.new(0.5, 0, 0, 10), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = gui }, {
