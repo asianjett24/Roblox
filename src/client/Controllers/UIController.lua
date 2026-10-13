@@ -34,6 +34,7 @@ local openName: string? = nil
 local toastHolder, hintFrame, hintLabel, slamHolder, carryBanner, carryLabel
 local coinsLabel, bagLabel, coinPill, bagPill
 local bounty = {} -- the bounty card: Root, Art, Name, Reward, Zone, Id
+local seenSpecies = nil -- how many species you had the last time you looked at the Index
 local coinValue = Instance.new("NumberValue")
 local shownCoins, hasData = 0, false
 local panelListeners = {}
@@ -298,6 +299,14 @@ local function setOpen(name: string?)
 	end
 	for n, b in navButtons do
 		b.Selected.Visible = n == name
+	end
+	if name == "Index" and navButtons.Index and UIController.Data then
+		local found = 0
+		for _ in UIController.Data.Discovered do
+			found += 1
+		end
+		seenSpecies = found
+		navButtons.Index.Alert.Visible = false
 	end
 	for _, fn in panelListeners do
 		task.spawn(fn, name)
@@ -962,6 +971,23 @@ local function refreshAll(data)
 			end
 		end
 		shop.Alert.Visible = can
+	end
+	-- Index alert: new creatures discovered since you last looked
+	local found = 0
+	for _ in data.Discovered do
+		found += 1
+	end
+	seenSpecies = seenSpecies or found
+	if openName == "Index" then
+		seenSpecies = found
+	end
+	if navButtons.Index then
+		navButtons.Index.Alert.Visible = found > seenSpecies
+	end
+	-- Bag alert: nearly full, time to sell
+	if navButtons.Bag then
+		local cap = if player:GetAttribute("BigBag") then 150 else Config.InventoryCap
+		navButtons.Bag.Alert.Visible = #data.Inventory >= cap * 0.9
 	end
 	if bounty.Root then
 		local b = data.Bounty
