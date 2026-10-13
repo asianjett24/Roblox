@@ -175,6 +175,15 @@ local function bank(player: Player, head: BasePart?)
 	end
 	local value = FishData.GetValue(item.Id, item.Kg, item.Size, item.Mut)
 	BountyService.OnBank(player, data, item)
+	-- escape streak bonus
+	local streak = (player:GetAttribute("Streak") or 0) + 1
+	player:SetAttribute("Streak", streak)
+	local pct = math.min(Config.Streak.Max, Config.Streak.Step * (streak - 1))
+	if pct > 0 then
+		local bonus = math.max(1, math.floor(value * pct))
+		data.Coins += bonus
+		Remotes.ChaseEvent:FireClient(player, "Streak", { Streak = streak, Bonus = bonus, Percent = math.floor(pct * 100 + 0.5) })
+	end
 	local closeCall = closest < Config.CloseCall.Distance
 	if closeCall then
 		local bonus = math.max(1, math.floor(value * Config.CloseCall.Bonus))
@@ -196,6 +205,7 @@ end
 local function bite(g, player: Player, root: BasePart)
 	local c = carrying[player]
 	dropCarry(player)
+	player:SetAttribute("Streak", 0)
 	local data = DataService.Get(player)
 	if data then
 		data.Bitten += 1
@@ -222,6 +232,7 @@ local function step(dt: number)
 		local root = rootOf(player)
 		if not root or not head then
 			dropCarry(player)
+			player:SetAttribute("Streak", 0)
 		elseif not DiverService.IsUnderwater(head.Position) then
 			bank(player, head)
 		end

@@ -4,6 +4,7 @@ A low-poly Roblox spearfishing game. Dive into a huge stepped ocean pit, spear s
 
 ## Gameplay
 - **The chase:** every zone has four guardians, one sleeping in each corner of the zone floor. Spear a creature and you carry it on your back. The nearest guardian wakes up (and any other close enough to notice) and hunts you. When it gets close it coils (flashing red) and then lunges in a straight line, so a well-timed dash sideways makes it miss. Get your head out of the water to bank the catch. If it bites you, you take damage and your catch swims away. Escaping with a guardian right behind you is a **close call** and pays 25% extra.
+- **Escape streak:** every catch you bank in a row without being bitten adds +10% bonus coins (up to +50%). A bite resets it.
 - **Bounties:** you always have one bounty creature (shown on the right of the screen, and marked BOUNTY in the water). Banking it pays three times its value, then a new bounty rolls.
 - **Zones and guardians:** Sunlit Shallows (Reef Shark), Coral Reef (Giant Moray), Twilight Trench (Great Hammerhead), The Abyss (The Kraken) and Leviathan's Rift (Ancient Leviathan). Each zone has its own fog colour. Deeper zones have rarer creatures and faster guardians.
 - **Creatures:** 31 species, including sharks, squids, rays, a turtle, eels, a sea dragon, a Megalodon Pup, a Kraken Spawn and a Leviathan Hatchling. The rarest ones swim near the guardian's lair.

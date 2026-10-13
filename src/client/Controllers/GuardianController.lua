@@ -30,6 +30,7 @@ local closeCallBonus = nil
 local coilGlow = nil -- red outline on a guardian that's about to lunge at you
 local windupTips = 0
 local bountyReward = nil
+local streakInfo = nil
 local INTERP_DELAY = 0.16 -- two snapshots behind (12 per second), so network jitter never runs it dry
 local SWIM = { Sleep = 0.35, Wake = 1.5, Chase = 2, Return = 1 }
 
@@ -452,12 +453,23 @@ local function onChase(kind, info)
 		closeCallBonus = info.Bonus
 	elseif kind == "Bounty" then
 		bountyReward = info.Reward
+	elseif kind == "Streak" then
+		streakInfo = info
 	elseif kind == "Escaped" then
 		if info.Player == me then
+			-- extra lines for the bonuses this escape earned
+			local extras = {}
+			if streakInfo then
+				table.insert(extras, string.format("x%d streak +%d%%", streakInfo.Streak, streakInfo.Percent))
+				streakInfo = nil
+			end
 			if bountyReward then
 				local sub = "+" .. Format.Number(bountyReward) .. " coins"
 				if closeCallBonus then
 					sub ..= "  (+" .. Format.Number(closeCallBonus) .. " close call!)"
+				end
+				if #extras > 0 then
+					sub ..= "  " .. table.concat(extras, "  ")
 				end
 				UI.Slam("BOUNTY DONE!", Color3.fromRGB(255, 210, 60), sub)
 				local card = UI.GetAnchor("Bounty")
@@ -467,11 +479,11 @@ local function onChase(kind, info)
 				bountyReward, closeCallBonus = nil, nil
 				confetti(130)
 			elseif closeCallBonus then
-				UI.Slam("CLOSE CALL!", Color3.fromRGB(255, 210, 60), "+" .. Format.Number(closeCallBonus) .. " bonus coins")
+				UI.Slam("CLOSE CALL!", Color3.fromRGB(255, 210, 60), "+" .. Format.Number(closeCallBonus) .. " bonus coins" .. (if #extras > 0 then "  " .. table.concat(extras, "  ") else ""))
 				closeCallBonus = nil
 				confetti(110)
 			else
-				UI.Slam("ESCAPED!", Color3.fromRGB(110, 230, 90), nil)
+				UI.Slam("ESCAPED!", Color3.fromRGB(110, 230, 90), if #extras > 0 then table.concat(extras, "  ") else nil)
 			end
 			confetti(70)
 			if Audio then

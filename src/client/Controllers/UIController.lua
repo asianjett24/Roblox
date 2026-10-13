@@ -1105,6 +1105,36 @@ function UIController.Init()
 	bounty.Reward = text("", 15, F.Title, C.Gold, { LayoutOrder = 2, ZIndex = 3, Parent = rewardRow })
 	UIController.Anchors.Bounty = bRoot
 
+	-- Escape streak chip (under the bounty card): catches banked in a row without a bite
+	local streakChip = make("Frame", { Name = "Streak", Size = UDim2.fromOffset(232, 32), Position = UDim2.new(1, -14, 0.5, 16), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = gui }, {
+		UIKit.round(),
+		UIKit.gradient(UIKit.Swatch.orange[1], UIKit.Swatch.orange[2]),
+		UIKit.outline(2.5),
+	})
+	local streakScale = make("UIScale", { Parent = streakChip })
+	icon("sprint", 22, Color3.fromRGB(255, 250, 220), { Position = UDim2.new(0, 8, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = streakChip })
+	local streakLabel = UIKit.fitText("", 16, C.Text, { Size = UDim2.new(1, -46, 0, 20), Position = UDim2.new(0, 36, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), TextXAlignment = Enum.TextXAlignment.Left, Parent = streakChip })
+	streakLabel:FindFirstChildOfClass("UIStroke").Color = UIKit.deep(UIKit.Swatch.orange[3], 0.4)
+	local lastStreak = 0
+	local function onStreak()
+		local n = player:GetAttribute("Streak") or 0
+		if n >= 2 then
+			local pct = math.floor(math.min(Config.Streak.Max, Config.Streak.Step * (n - 1)) * 100 + 0.5)
+			streakLabel.Text = string.format("STREAK x%d   +%d%% COINS", n, pct)
+			streakChip.Visible = true
+			streakScale.Scale = 1.3
+			tween(streakScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+		else
+			if lastStreak >= 2 then
+				UIController.Notify(string.format("Streak of %d lost!", lastStreak), "error")
+			end
+			streakChip.Visible = false
+		end
+		lastStreak = n
+	end
+	player:GetAttributeChangedSignal("Streak"):Connect(onStreak)
+	onStreak()
+
 	-- toasts stack down the right side so they never cover an open panel
 	toastHolder = make("Frame", { Size = UDim2.fromOffset(380, 300), Position = UDim2.new(1, -14, 0, 60), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 9, Parent = gui }, {
 		UIKit.list(nil, 8, Enum.HorizontalAlignment.Right),
