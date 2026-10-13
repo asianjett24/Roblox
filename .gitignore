@@ -1,4 +1,5 @@
 *.rbxl
+!CastleFishing.rbxm
 *.rbxlx
 *.rbxl.lock
 *.rbxlx.lock
