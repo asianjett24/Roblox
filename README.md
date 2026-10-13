@@ -12,6 +12,17 @@ A Roblox fishing game on a walled castle island. There are 8 numbered bases arou
 7. The fish you're carrying swim around in your base's **tank**.
 8. Fill out the **Index**: 16 fish across 6 rarities.
 
+## Setup (Rojo, recommended)
+One-time:
+1. Clone this repo with GitHub Desktop and switch to this branch.
+2. Double-click **Start Rojo.bat** (Windows) or **Start Rojo.command** (Mac). The first run downloads Rojo and installs its Studio plugin. Keep the window open.
+3. Open your place in Studio (restart Studio if it was already open), then click **Plugins → Rojo → Connect**.
+4. Build the map: in the Command Bar run `require(game.ServerStorage.BuildMap)()`.
+
+Every update afterwards: **Fetch/Pull** in GitHub Desktop. Studio picks up the changes by itself while Rojo is connected. Re-run the map line only when the map changed.
+
+Edit code in the files, not inside Studio. Rojo overwrites Studio-side edits to synced scripts.
+
 ## Files
 - `BuildMap.rbxm` / `map/BuildMap.lua`: builds the whole map. Insert it into Workspace, then run `require(workspace.BuildMap)()` in the Command Bar.
 - `CastleFishing.rbxm`: all the game scripts in one drag-in file.
