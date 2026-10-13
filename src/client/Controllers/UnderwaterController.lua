@@ -74,7 +74,7 @@ local function buildHud(gui)
 	local dashLabel = text("SHIFT", 15, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 1, -24), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = dashFace })
 
 	-- zone banner
-	local banner = make("Frame", { Size = UDim2.fromOffset(520, 92), Position = UDim2.new(0.5, 0, 0, -120), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = gui })
+	local banner = make("Frame", { Size = UDim2.fromOffset(520, 92), Position = UDim2.new(0.5, 0, 0, -200), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = gui })
 	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 6), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = banner }, { Kit.corner(20) })
 	local bFace = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true, Parent = banner }, {
 		Kit.corner(20),
@@ -98,11 +98,27 @@ local function showZoneBanner(z)
 	hud.BannerTitle.Text = string.upper(z.Display)
 	hud.BannerSub.Text = string.format("%dm  -  Guardian: %s", math.floor(Zones.Depth(z.Top)), z.Guardian.Name)
 	hud.BannerGrad.Color = ColorSequence.new(z.Fog:Lerp(Color3.new(1, 1, 1), 0.15), z.FogDeep)
-	hud.Banner.Position = UDim2.new(0.5, 0, 0, -120)
-	TweenService:Create(hud.Banner, TweenInfo.new(0.45, Enum.EasingStyle.Back), { Position = UDim2.new(0.5, 0, 0, 180) }):Play()
+	hud.Banner.Position = UDim2.new(0.5, 0, 0, -200)
+	hud.Banner.Visible = true
+	TweenService:Create(hud.Banner, TweenInfo.new(0.45, Enum.EasingStyle.Back), { Position = UDim2.new(0.5, 0, 0, 186) }):Play()
 	task.delay(2.6, function()
 		if token == bannerToken then
-			TweenService:Create(hud.Banner, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Position = UDim2.new(0.5, 0, 0, -120) }):Play()
+			UnderwaterController.HideBanner()
+		end
+	end)
+end
+
+function UnderwaterController.HideBanner()
+	bannerToken += 1
+	local token = bannerToken
+	if not hud.Banner.Visible then
+		return
+	end
+	local tw = TweenService:Create(hud.Banner, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Position = UDim2.new(0.5, 0, 0, -200) })
+	tw:Play()
+	tw.Completed:Connect(function()
+		if token == bannerToken then
+			hud.Banner.Visible = false
 		end
 	end)
 end
@@ -191,6 +207,10 @@ local function step(dt: number)
 		lamp.Part.CFrame = camera.CFrame
 	end
 
+	-- a big centre word (RUN! etc.) takes priority over the zone banner
+	if hud.Banner.Visible and os.clock() - (UI.SlamAt or -10) < 0.2 then
+		UnderwaterController.HideBanner()
+	end
 	if zone ~= lastZone then
 		if zone and lastZone and zone.Index > lastZone.Index then
 			showZoneBanner(zone)

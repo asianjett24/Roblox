@@ -175,7 +175,7 @@ local function buildHud()
 	-- full-screen flash (bites)
 	local flash = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 30, 30), BackgroundTransparency = 1, BorderSizePixel = 0, Parent = gui })
 	-- danger meter
-	local meter = make("Frame", { Size = UDim2.fromOffset(320, 40), Position = UDim2.new(0.5, 0, 0, 132), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = gui })
+	local meter = make("Frame", { Size = UDim2.fromOffset(320, 40), Position = UDim2.new(0.5, 0, 0, 132), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = UI.GetGui() })
 	local meterScale = make("UIScale", { Parent = meter })
 	local face = make("Frame", { Size = UDim2.new(1, 0, 0, 24), Position = UDim2.fromOffset(0, 16), BackgroundColor3 = C.Ink, Parent = meter }, { Kit.round(), Kit.outline(3) })
 	local fill = make("Frame", { Size = UDim2.fromScale(0.3, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = face }, {

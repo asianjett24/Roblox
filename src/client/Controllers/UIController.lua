@@ -149,7 +149,7 @@ function UIController.Notify(message: string, kind: string?)
 	local swatch = if kind == "error" then "red" elseif kind == "success" then "green" else "blue"
 	local glyph = if kind == "error" then "alert" elseif kind == "success" then "check" else "fish"
 	local sw = UIKit.Swatch[swatch]
-	local toast = make("Frame", { Size = UDim2.fromOffset(0, 50), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = Color3.new(1, 1, 1), Parent = toastHolder }, {
+	local toast = make("Frame", { Size = UDim2.fromOffset(0, 50), AutomaticSize = Enum.AutomaticSize.XY, BackgroundColor3 = Color3.new(1, 1, 1), Parent = toastHolder }, {
 		UIKit.corner(14),
 		make("UIGradient", { Color = ColorSequence.new(UIKit.Swatch.navy[1], UIKit.Swatch.navy[2]), Rotation = 90 }),
 		UIKit.outline(3),
@@ -162,7 +162,9 @@ function UIController.Notify(message: string, kind: string?)
 		UIKit.outline(2.5),
 	})
 	icon(glyph, 20, C.Text, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Parent = badge })
-	text(message, 18, F.Title, C.Text, { LayoutOrder = 2, Parent = toast })
+	local label = text(message, 18, F.Title, C.Text, { LayoutOrder = 2, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = toast })
+	label.AutomaticSize = Enum.AutomaticSize.XY
+	make("UISizeConstraint", { MaxSize = Vector2.new(330, 200), Parent = label })
 	local scale = make("UIScale", { Scale = 0.3, Parent = toast })
 	tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 	task.delay(3.2, function()
@@ -194,7 +196,9 @@ end
 
 -- Big centre-screen word that slams in (RUN!, ESCAPED!, CHOMP!)
 local slamToken = 0
+UIController.SlamAt = -10
 function UIController.Slam(word: string, color: Color3?, sub: string?)
+	UIController.SlamAt = os.clock()
 	slamToken += 1
 	local token = slamToken
 	clearChildren(slamHolder)
@@ -802,7 +806,7 @@ end
 function UIController.ShowCatch(info)
 	local rarity = FishData.GetRarity(info.Id)
 	local rc = UIKit.RarityColors[rarity.Name]
-	local root = make("Frame", { Size = UDim2.fromOffset(580, 236), Position = UDim2.new(0.5, 0, 0, 210), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 8, Parent = gui })
+	local root = make("Frame", { Size = UDim2.fromOffset(580, 236), Position = UDim2.fromScale(0.5, 0.63), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 8, Parent = gui })
 	local scale = make("UIScale", { Scale = 0.2, Parent = root })
 	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 10), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.25, Parent = root }, { UIKit.corner(22) })
 	local card = UIKit.card(rc[1], rc[2], { Size = UDim2.fromOffset(580, 236), Parent = root })
@@ -954,10 +958,11 @@ function UIController.Init()
 	icon("fish", 40, C.Accent, { Position = UDim2.new(0, -6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = bagBox })
 	bagLabel = text("0/" .. Config.InventoryCap, 24, F.Title, C.Text, { Size = UDim2.new(1, -44, 1, 0), Position = UDim2.fromOffset(38, 0), AutomaticSize = Enum.AutomaticSize.None, Parent = bagBox })
 
-	toastHolder = make("Frame", { Size = UDim2.fromOffset(800, 240), Position = UDim2.new(0.5, 0, 0, 132), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, ZIndex = 9, Parent = gui }, {
-		UIKit.list(nil, 8, Enum.HorizontalAlignment.Center),
+	-- toasts stack down the right side so they never cover an open panel
+	toastHolder = make("Frame", { Size = UDim2.fromOffset(420, 300), Position = UDim2.new(1, -16, 0, 84), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 9, Parent = gui }, {
+		UIKit.list(nil, 8, Enum.HorizontalAlignment.Right),
 	})
-	slamHolder = make("Frame", { Size = UDim2.fromOffset(900, 140), Position = UDim2.fromScale(0.5, 0.34), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 9, Parent = gui })
+	slamHolder = make("Frame", { Size = UDim2.fromOffset(900, 140), Position = UDim2.fromScale(0.5, 0.36), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 9, Parent = gui })
 
 	-- Carry banner
 	carryBanner = make("Frame", { Size = UDim2.fromOffset(0, 48), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 0, 74), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = gui }, {

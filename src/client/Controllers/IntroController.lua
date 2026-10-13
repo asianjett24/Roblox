@@ -80,7 +80,7 @@ function IntroController.Init(ui, audio)
 
 	-- facts
 	local creatures = #FishData.Fish
-	local facts = make("Frame", { Size = UDim2.fromOffset(900, 44), Position = UDim2.new(0.5, 0, 0, 330), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = screen }, {
+	local facts = make("Frame", { Size = UDim2.fromOffset(900, 44), Position = UDim2.new(0.5, 0, 0, 372), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = screen }, {
 		Kit.list(Enum.FillDirection.Horizontal, 14, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
 	})
 	local chips = {}
