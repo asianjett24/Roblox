@@ -33,7 +33,7 @@ local listeners = {}
 local swimVel = Vector3.zero
 local swimDir = Vector3.zero -- the direction you're pressing (dash goes this way)
 local swimming = false
-local SWIM_ACCEL, SWIM_GLIDE = 7, 2.6 -- how fast you reach full speed, and how slowly you coast to a stop
+local SWIM_ACCEL, SWIM_GLIDE = 7, 3.4 -- how fast you reach full speed, and how slowly you coast to a stop
 local fov = { Speed = 0, Dash = 0, Punch = 0 } -- extra field of view: swim speed, dash, kicks (spear fire)
 
 local function charParts()
@@ -253,7 +253,9 @@ end
 
 local function held(...): boolean
 	for _, key in { ... } do
-		if UserInputService:IsKeyDown(key) then
+		local down = if string.sub(key.Name, 1, 6) == "Button" then UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, key)
+			else UserInputService:IsKeyDown(key)
+		if down then
 			return true
 		end
 	end
@@ -327,7 +329,10 @@ local function step(dt: number)
 	else
 		DiveController.Underwater = false
 		setFirstPerson(false)
-		swimming = false
+		if swimming then
+			local char = player.Character
+			stopSwim(char and char:FindFirstChild("HumanoidRootPart"))
+		end
 	end
 
 	local now = os.clock()
