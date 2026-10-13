@@ -5,33 +5,12 @@
 -- The server starts a new segment from the fish's current spot every so often.
 local FishPath = {}
 
--- Depth zones in the pond (studs). 1 stud = 2 m on the depth meter.
-FishPath.Zones = {
-	{ Name = "Shallows", Display = "Kelp Shallows", Min = Vector3.new(-110, -46, -110), Max = Vector3.new(110, -6, 110), Count = 14 },
-	{ Name = "Reef", Display = "Coral Reef", Min = Vector3.new(-92, -144, -92), Max = Vector3.new(92, -56, 92), Count = 10 },
-	{ Name = "Trench", Display = "Deep Trench", Min = Vector3.new(-72, -244, -72), Max = Vector3.new(72, -156, 72), Count = 7 },
-	{ Name = "Abyss", Display = "The Abyss", Min = Vector3.new(-52, -294, -52), Max = Vector3.new(52, -258, 52), Count = 5 },
-}
-FishPath.ZoneByName = {}
-for i, z in FishPath.Zones do
-	z.Index = i
-	FishPath.ZoneByName[z.Name] = z
-end
+local Zones = require(script.Parent.Zones)
 
--- Which zone a depth (world Y) is in, or nil above water.
-function FishPath.ZoneAt(y: number)
-	if y > -1 then
-		return nil
-	end
-	if y > -50 then
-		return FishPath.Zones[1]
-	elseif y > -150 then
-		return FishPath.Zones[2]
-	elseif y > -250 then
-		return FishPath.Zones[3]
-	end
-	return FishPath.Zones[4]
-end
+-- Kept for older callers: the dive zones and a lookup by height.
+FishPath.Zones = Zones.List
+FishPath.ZoneByName = Zones.ByName
+FishPath.ZoneAt = Zones.At
 
 function FishPath.RandomPoint(rng: Random, zone, margin: number)
 	local lo, hi = zone.Min, zone.Max
@@ -74,9 +53,9 @@ function FishPath.NewSegment(rng: Random, zone, p0: Vector3, t0: number, speed: 
 		fx = if d.X >= 0 then 1 else -1
 		fz = if d.Z >= 0 then 1 else -1
 	end
-	local px, ax = axis(p0.X, lo.X, hi.X, 40, fx)
-	local py, ay = axis(p0.Y, lo.Y, hi.Y, 6, fy)
-	local pz, az = axis(p0.Z, lo.Z, hi.Z, 40, fz)
+	local px, ax = axis(p0.X, lo.X, hi.X, 55, fx)
+	local py, ay = axis(p0.Y, lo.Y, hi.Y, 10, fy)
+	local pz, az = axis(p0.Z, lo.Z, hi.Z, 55, fz)
 	local function freq(amp)
 		return math.clamp(1.8 * speed / math.max(math.abs(amp) * 2, 4) * rng:NextNumber(0.8, 1.2), 0.04, 2.5)
 	end
