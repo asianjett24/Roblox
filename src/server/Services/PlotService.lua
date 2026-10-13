@@ -1,9 +1,8 @@
--- Gives each player one of the bases, spawns them on it, shows their name on it,
--- knows when they're on their own dock, and fills their tank with the fish they're carrying.
+-- Gives each player one of the bases, spawns them on it, paints their name on its sign,
+-- and tells clients which fish to show in its aquarium.
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
@@ -139,72 +138,22 @@ local function setSign(plot: Instance, player: Player?)
 	gui.Label.Text = if player then player.DisplayName .. "'s Base" else (if index then "Base " .. index else "Free Base")
 end
 
--- Tank --------------------------------------------------------------------
+-- Tank ----------------------------------------------------------------------
+-- The client draws the owner's best fish swimming in their aquarium from this attribute.
 local function updateTank(player: Player, data)
 	local plot = PlotService.GetPlot(player)
-	local water = plot and plot:FindFirstChild("TankWater", true)
-	if not water or not water:IsA("BasePart") then
+	if not plot then
 		return
 	end
-	local holder = plot:FindFirstChild("TankFish")
-	if holder then
-		holder:Destroy()
-	end
-	holder = Instance.new("Folder")
-	holder.Name = "TankFish"
-	holder.Parent = plot
-
 	local items = table.clone(data.Inventory)
 	table.sort(items, function(a, b)
 		return FishData.GetValue(a.Id, a.Kg) > FishData.GetValue(b.Id, b.Kg)
 	end)
-	local size = water.Size
+	local ids = {}
 	for i = 1, math.min(#items, Config.TankMaxFish) do
-		local rarity = FishData.GetRarity(items[i].Id)
-		local fish = Instance.new("Part")
-		fish.Name = items[i].Id
-		fish.Size = Vector3.new(0.5, 0.7, 1.4)
-		fish.Color = rarity.Color
-		fish.Material = if rarity.Name == "Mythic" or rarity.Name == "Legendary" then Enum.Material.Neon else Enum.Material.SmoothPlastic
-		fish.Anchored = true
-		fish.CanCollide = false
-		fish.CanQuery = false
-		fish.CastShadow = false
-		local function randomPoint()
-			return water.CFrame * Vector3.new(
-				(math.random() - 0.5) * (size.X - 2),
-				(math.random() - 0.5) * (size.Y - 1.5),
-				(math.random() - 0.5) * (size.Z - 2)
-			)
-		end
-		local a, b = randomPoint(), randomPoint()
-		fish.CFrame = CFrame.lookAt(a, b)
-		local tail = Instance.new("Part")
-		tail.Name = "Tail"
-		tail.Size = Vector3.new(0.2, 0.6, 0.5)
-		tail.Color = rarity.Color
-		tail.Anchored = true
-		tail.CanCollide = false
-		tail.CanQuery = false
-		tail.CastShadow = false
-		tail.CFrame = fish.CFrame * CFrame.new(0, 0, 0.9)
-		tail.Parent = fish
-		fish.Parent = holder
-		-- Swim back and forth between two points.
-		task.spawn(function()
-			local from, to = a, b
-			while fish.Parent do
-				local dur = (to - from).Magnitude / (1.5 + math.random())
-				fish.CFrame = CFrame.lookAt(from, to)
-				tail.CFrame = fish.CFrame * CFrame.new(0, 0, 0.9)
-				local goal = CFrame.lookAt(to, to + (to - from))
-				TweenService:Create(fish, TweenInfo.new(dur, Enum.EasingStyle.Sine), { CFrame = goal }):Play()
-				TweenService:Create(tail, TweenInfo.new(dur, Enum.EasingStyle.Sine), { CFrame = goal * CFrame.new(0, 0, 0.9) }):Play()
-				task.wait(dur + 0.3)
-				from, to = to, randomPoint()
-			end
-		end)
+		table.insert(ids, items[i].Id)
 	end
+	plot:SetAttribute("TankFish", table.concat(ids, ","))
 end
 
 -- Public API ----------------------------------------------------------------
@@ -219,25 +168,6 @@ end
 
 function PlotService.OwnerOf(plot: Instance): Player?
 	return ownerOf[plot]
-end
-
--- True when the player is standing on (or right next to) their own base's dock.
-function PlotService.IsOnOwnDock(player: Player): boolean
-	local plot = PlotService.GetPlot(player)
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not plot or not root then
-		return false
-	end
-	for _, name in { "Dock", "DockEnd" } do
-		local part = plot:FindFirstChild(name, true)
-		if part and part:IsA("BasePart") then
-			local rel = part.CFrame:PointToObjectSpace(root.Position)
-			if math.abs(rel.X) <= part.Size.X / 2 + 2 and math.abs(rel.Z) <= part.Size.Z / 2 + 2 and rel.Y > -2 and rel.Y < 10 then
-				return true
-			end
-		end
-	end
-	return false
 end
 
 local function assign(player: Player)
@@ -293,10 +223,7 @@ function PlotService.Init()
 				ownerOf[plot] = nil
 				plot:SetAttribute("OwnerUserId", nil)
 				setSign(plot, nil)
-				local fish = plot:FindFirstChild("TankFish")
-				if fish then
-					fish:Destroy()
-				end
+				plot:SetAttribute("TankFish", nil)
 			end
 		end
 	end)

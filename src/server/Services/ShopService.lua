@@ -1,15 +1,15 @@
--- Selling fish, buying/equipping rods, upgrading your dock.
+-- Selling fish, buying/equipping spearguns, upgrading your air tank.
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
 local FishData = require(Shared.FishData)
-local RodData = require(Shared.RodData)
+local GunData = require(Shared.GunData)
 local Remotes = require(Shared.Remotes)
 local Format = require(Shared.Format)
 local DataService = require(script.Parent.DataService)
-local RodService = require(script.Parent.RodService)
+local GearService = require(script.Parent.GearService)
 
 local ShopService = {}
 
@@ -55,53 +55,53 @@ end
 function ShopService.Init()
 	Remotes.SellAll.OnServerInvoke = ShopService.SellAll
 
-	Remotes.BuyRod.OnServerInvoke = function(player, rodId)
+	Remotes.BuyGun.OnServerInvoke = function(player, gunId)
 		local data = DataService.Get(player)
-		local rod = type(rodId) == "string" and RodData.ById[rodId]
-		if not data or not rod then
-			return false, "Invalid rod"
+		local gun = type(gunId) == "string" and GunData.ById[gunId]
+		if not data or not gun then
+			return false, "Invalid speargun"
 		end
-		if data.OwnedRods[rod.Id] then
+		if data.OwnedGuns[gun.Id] then
 			return false, "Already owned"
 		end
-		if data.Coins < rod.Price then
+		if data.Coins < gun.Price then
 			return false, "Not enough coins"
 		end
-		data.Coins -= rod.Price
-		data.OwnedRods[rod.Id] = true
-		data.Rod = rod.Id
+		data.Coins -= gun.Price
+		data.OwnedGuns[gun.Id] = true
+		data.Gun = gun.Id
 		DataService.Changed(player)
-		RodService.Give(player)
-		return true, "Bought the " .. rod.Name .. "!"
+		GearService.Give(player)
+		return true, "Bought the " .. gun.Name .. "!"
 	end
 
-	Remotes.EquipRod.OnServerInvoke = function(player, rodId)
+	Remotes.EquipGun.OnServerInvoke = function(player, gunId)
 		local data = DataService.Get(player)
-		if not data or type(rodId) ~= "string" or not data.OwnedRods[rodId] then
-			return false, "You don't own that rod"
+		if not data or type(gunId) ~= "string" or not data.OwnedGuns[gunId] or not GunData.ById[gunId] then
+			return false, "You don't own that speargun"
 		end
-		data.Rod = rodId
+		data.Gun = gunId
 		DataService.Changed(player)
-		RodService.Give(player)
-		return true, "Equipped " .. RodData.ById[rodId].Name
+		GearService.Give(player)
+		return true, "Equipped " .. GunData.ById[gunId].Name
 	end
 
-	Remotes.UpgradeDock.OnServerInvoke = function(player)
+	Remotes.UpgradeTank.OnServerInvoke = function(player)
 		local data = DataService.Get(player)
 		if not data then
 			return false, "Data not loaded"
 		end
-		if data.DockLevel >= Config.Dock.MaxLevel then
-			return false, "Dock is max level"
+		if data.TankLevel >= Config.Tank.MaxLevel then
+			return false, "Your air tank is maxed out"
 		end
-		local cost = Config.Dock.Costs[data.DockLevel]
+		local cost = Config.Tank.Costs[data.TankLevel]
 		if data.Coins < cost then
 			return false, "Not enough coins"
 		end
 		data.Coins -= cost
-		data.DockLevel += 1
+		data.TankLevel += 1
 		DataService.Changed(player)
-		return true, "Dock upgraded to level " .. data.DockLevel .. "!"
+		return true, string.format("Air tank upgraded! %ds of air", Config.Tank.Air[data.TankLevel])
 	end
 
 	-- Merchant prompts on any part tagged "Merchant".
@@ -126,15 +126,15 @@ function ShopService.Init()
 	end
 	CollectionService:GetInstanceAddedSignal(Config.MerchantTag):Connect(setupMerchant)
 
-	-- Rod shop prompts open the Shop menu.
-	local function setupRodShop(part: Instance)
+	-- Gear shop prompts open the Shop menu.
+	local function setupGearShop(part: Instance)
 		if not part:IsA("BasePart") or part:FindFirstChild("ShopPrompt") then
 			return
 		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.Name = "ShopPrompt"
-		prompt.ActionText = "Browse Rods"
-		prompt.ObjectText = "Rod Shop"
+		prompt.ActionText = "Browse Spearguns"
+		prompt.ObjectText = "Gear Shop"
 		prompt.RequiresLineOfSight = false
 		prompt.MaxActivationDistance = 14
 		prompt.Parent = part
@@ -142,10 +142,10 @@ function ShopService.Init()
 			Remotes.OpenPanel:FireClient(player, "Shop")
 		end)
 	end
-	for _, part in CollectionService:GetTagged(Config.RodShopTag) do
-		setupRodShop(part)
+	for _, part in CollectionService:GetTagged(Config.GearShopTag) do
+		setupGearShop(part)
 	end
-	CollectionService:GetInstanceAddedSignal(Config.RodShopTag):Connect(setupRodShop)
+	CollectionService:GetInstanceAddedSignal(Config.GearShopTag):Connect(setupGearShop)
 end
 
 return ShopService

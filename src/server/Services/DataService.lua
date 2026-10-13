@@ -28,12 +28,12 @@ DataService.OnChanged = changedSignal.Event
 local function defaultData()
 	return {
 		Coins = Config.StartingCoins,
-		Rod = "Basic",
-		OwnedRods = { Basic = true },
+		Gun = "Wooden",
+		OwnedGuns = { Wooden = true },
 		Inventory = {}, -- { {Id=string, Kg=number}, ... }
 		Discovered = {}, -- [fishId] = best kg
 		Caught = 0,
-		DockLevel = 1,
+		TankLevel = 1,
 	}
 end
 

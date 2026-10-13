@@ -1,7 +1,11 @@
 local Controllers = script.Parent:WaitForChild("Controllers")
 
 local UIController = require(Controllers:WaitForChild("UIController"))
-local FishingController = require(Controllers:WaitForChild("FishingController"))
+local FishRenderer = require(Controllers:WaitForChild("FishRenderer"))
+local SpearController = require(Controllers:WaitForChild("SpearController"))
+local UnderwaterController = require(Controllers:WaitForChild("UnderwaterController"))
 
 UIController.Init()
-FishingController.Init(UIController)
+FishRenderer.Init()
+SpearController.Init(UIController, FishRenderer)
+UnderwaterController.Init(UIController)

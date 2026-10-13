@@ -1,16 +1,15 @@
-# Castle Fishing
+# Castle Spearfishing
 
-A Roblox fishing game on a walled castle island. There are 8 numbered bases around a huge 600m-deep pond, and each base has its own private dock. Players get a base when they join.
+A Roblox spearfishing game on a walled castle island. Dive into a 600 m pond, spear fish with your speargun, sell your catch and upgrade your gear to reach the deeper zones.
 
-## Gameplay loop
-1. Join and spawn at your base with a **Basic Rod**.
-2. Equip the rod and **click the water** to cast. Wait for the `!`.
-3. Win the **reel minigame**: hold click, tap or Space to keep the green bar on the fish until the meter fills.
-4. Sell at the **Fish Market** stall, or press **Sell All** in your Bag.
-5. Buy better rods at the **Rod Shop** (walk up to the door) or from the Shop button.
-6. Fish from **your own dock** to find dock-only fish, and **upgrade your dock** for more luck.
-7. The fish you're carrying swim around in your base's **tank**.
-8. Fill out the **Index**: 16 fish across 6 rarities.
+## Gameplay
+- **Dive zones:** Kelp Shallows (0 to 100 m), Coral Reef (100 to 300 m), Deep Trench (300 to 500 m) and The Abyss (500 to 600 m). Rarer fish live deeper.
+- **Spearguns:** six tiers, from the Driftwood Speargun to the Royal Trident. Better guns hit harder, reach further and reload faster.
+- **Fish:** 16 species, each with its own swimming model. Rarer fish take several hits and flee when hurt.
+- **Air:** your tank drains underwater and refills at the surface. Upgrade it in **Gear** to dive deeper.
+- **Bases:** you get one of 8 bases. Its aquarium shows your best fish swimming, and the dock has a ladder out of the water.
+- **Fish Index:** collect all 16 species and beat your weight records.
+- **Controls:** press **1** for the speargun and **click** to fire. Menus open with **B** (Bag), **V** (Shop), **X** (Index) and **G** (Gear).
 
 ## Setup (Rojo, recommended)
 One-time:
@@ -24,23 +23,23 @@ Every update afterwards: **Fetch/Pull** in GitHub Desktop. Studio picks up the c
 Edit code in the files, not inside Studio. Rojo overwrites Studio-side edits to synced scripts.
 
 ## Files
-- `BuildMap.rbxm` / `map/BuildMap.lua`: builds the whole map. Insert it into Workspace, then run `require(workspace.BuildMap)()` in the Command Bar.
-- `CastleFishing.rbxm`: all the game scripts in one drag-in file.
-- `src/`: the same scripts as source code (for Rojo users).
-
-## Your own rod model
-Put an imported rod model in **ServerStorage** and name it `RodModel` (a model called `Root Scene` works too). The game scales it, works out which end is the handle, and uses it for every rod. If it's held wrong, change `Config.Rod` in `src/shared/Config.lua` (`Flip`, `Spin`, `Tilt`, `GripAt`).
+- `map/BuildMap.lua`: builds the whole map. It syncs to ServerStorage; run `require(game.ServerStorage.BuildMap)()` in the Command Bar. The game also rebuilds an out-of-date map automatically when you press Play.
+- `src/shared`: data and logic used by both server and client (fish, spearguns, fish paths, speargun models).
+- `src/server`: services for data, plots, gear, the shop, air and fish.
+- `src/client`: the UI design kit, fish models, and controllers for the UI, fish drawing, spear shooting and underwater effects.
 
 ## Tuning
 All balance numbers are in `src/shared`:
-- `Config.lua`: bite timing, bag size, dock upgrade costs and bonuses, rod model settings
-- `FishData.lua`: fish, rarities, weights, prices and zones
-- `RodData.lua`: rods, prices and stats
+- `Config.lua`: spear speed, fish respawn, air tank levels and costs, drowning damage, bag size
+- `FishData.lua`: fish, rarities (and their health), weights, prices, zones, swim speed and looks
+- `GunData.lua`: spearguns, prices, damage, range, reload and colours
+- `FishPath.lua`: the depth zones and how many fish live in each
 
 ## Code layout
 ```
-src/shared   -> ReplicatedStorage.Shared   (data tables, remotes, formatting)
-src/server   -> ServerScriptService.Server (Data, Plot, Rod, Shop, Fishing services)
-src/client   -> StarterPlayerScripts.Client (UI + fishing/minigame controller)
+src/shared      -> ReplicatedStorage.Shared       (data, fish paths, speargun models, remotes)
+src/server      -> ServerScriptService.Server     (Map, Data, Plot, Gear, Shop, Oxygen, Fish services)
+src/client      -> StarterPlayerScripts.Client    (UIKit, FishModels, UI / FishRenderer / Spear / Underwater)
+map/BuildMap.lua -> ServerStorage.BuildMap
 ```
-Fishing is server-authoritative. The server checks the cast distance and the water, rolls the fish, times the bite, and rejects reels that finish impossibly fast, so exploiters can't spawn fish.
+Fish positions are worked out from shared path maths (`FishPath`), so every player sees the same fish with almost no network traffic. The server checks each shot (reload time, where it was fired from) and each hit (the fish must be within the gun's range at that moment) before awarding a catch.

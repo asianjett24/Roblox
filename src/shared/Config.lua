@@ -1,55 +1,44 @@
 -- Central tuning knobs. Change numbers here instead of digging through scripts.
 local Config = {}
 
-Config.DataStoreName = "CastleFishing_v1"
+Config.DataStoreName = "CastleSpearfishing_v1"
 Config.AutosaveInterval = 120
 
 Config.StartingCoins = 0
 Config.InventoryCap = 60
 
--- Fishing timing (seconds)
-Config.BiteDelayMin = 2.5
-Config.BiteDelayMax = 7
-Config.MinReelTime = 1.2 -- server rejects catches faster than this after a bite
-Config.MaxReelTime = 45 -- a bite that isn't resolved by then is dropped
+-- Spears
+Config.SpearSpeed = 140 -- studs/second in air
+Config.SpearSpeedWater = 100 -- studs/second underwater
+Config.HitTolerance = 10 -- extra studs the server allows when checking a hit
 
--- How water is recognised. Any of these counts:
---   * part tagged "FishingWater" (CollectionService / Tag editor)
---   * part whose Name is in WaterNames
---   * part with Material = Water, or Terrain water
-Config.WaterTag = "FishingWater"
-Config.WaterNames = { "WaterTri", "Water" }
+-- Fish
+Config.FishRespawn = 8 -- seconds before a caught fish is replaced
+Config.FishRepath = { 10, 20 } -- seconds between a fish picking a new direction
+Config.FleeTime = 6 -- seconds a hurt fish swims faster
 
--- Plots: Models tagged "Plot" (BuildMap.lua does this), or the children of workspace.Plots.
--- A part named "Dock" inside a plot is that player's private dock; "Spawn" is where they spawn;
--- "TankWater" is where their caught fish swim.
-Config.PlotTag = "Plot"
-Config.PlotFolderName = "Plots"
+-- The pond (water surface height and how far it reaches from the centre)
+Config.WaterLevel = -1
+Config.PondHalf = 120
 
--- Tag a part "Merchant" for a Sell prompt, "RodShop" for a Browse Rods prompt.
+-- Air tank upgrades (seconds of air underwater per level)
+Config.Tank = {
+	MaxLevel = 5,
+	Air = { 25, 40, 60, 85, 120 },
+	Costs = { 750, 3000, 12000, 40000 }, -- cost to go from level N to N+1
+}
+Config.DrownDamage = 12 -- health per second once you're out of air
+Config.AirRefill = 10 -- seconds of air regained per second at the surface
+
+-- Tag a part "Merchant" for a Sell prompt, "GearShop" for a Browse Spearguns prompt.
 Config.MerchantTag = "Merchant"
-Config.RodShopTag = "RodShop"
+Config.GearShopTag = "GearShop"
 Config.SellAnywhere = true -- the Bag's "Sell All" works anywhere
 
-Config.TankMaxFish = 10 -- fish shown swimming in your base tank
-
--- Fishing rod look. If a model with one of these names is in ServerStorage, ReplicatedStorage
--- or Workspace, it's used for every rod; otherwise a rod is built from parts.
-Config.Rod = {
-	ModelNames = { "RodModel", "FishingRod", "Root Scene" },
-	Length = 7, -- studs, butt to tip
-	GripAt = 0.14, -- where the hand holds it (fraction of length from the butt)
-	Tilt = 35, -- degrees the rod leans forward in your hand
-	Flip = true, -- swap which end is held (true is right for the Quaternius rod)
-	Spin = 0, -- degrees to turn the rod around its own length (e.g. 180 if the reel faces up)
-}
-
--- Private dock upgrades (fishing from your own base's dock)
-Config.Dock = {
-	MaxLevel = 5,
-	Costs = { 750, 3000, 12000, 40000 }, -- cost to go from level N to N+1
-	LuckPerLevel = 0.12,
-	BiteSpeedPerLevel = 0.1,
-}
+-- Plots: Models tagged "Plot" (BuildMap does this). "Spawn" = where the owner spawns,
+-- "TankWater" = where their catch is shown swimming.
+Config.PlotTag = "Plot"
+Config.PlotFolderName = "Plots"
+Config.TankMaxFish = 6
 
 return Config

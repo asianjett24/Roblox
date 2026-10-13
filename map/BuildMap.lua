@@ -1,5 +1,6 @@
--- BuildMap v5
--- Stud-brick castle island with a deep fishing pond.
+-- BuildMap v6
+-- Stud-brick castle island with a deep spearfishing pond (kelp shallows, coral reef,
+-- rocky trench and a glowing abyss).
 --   * 8 numbered bases (hedged gardens with a fish tank) each with a private plank dock
 --   * 4 public piers, a town plaza with the Rod Shop and Fish Market
 --   * every structural brick has studs on all sides
@@ -8,7 +9,7 @@
 --     require(workspace.BuildMap)()
 -- WARNING: wipes Terrain and replaces the "Map" folder.
 
-local MAP_VERSION = 5
+local MAP_VERSION = 6
 
 local function build()
 	local CollectionService = game:GetService("CollectionService")
@@ -312,6 +313,7 @@ local function build()
 
 	section("Underwater", function()
 		local urng = Random.new(5)
+		-- A random spot on a ledge ring between a and b studs from the centre
 		local function ledgePoint(a, b)
 			local t = urng:NextNumber(a + 3, b - 3)
 			local s = urng:NextNumber(-b + 3, b - 3)
@@ -320,37 +322,86 @@ local function build()
 			end
 			return (urng:NextInteger(0, 1) == 0) and t or -t, s
 		end
-		for _, l in { { -50, 100, 120 }, { -150, 80, 100 }, { -250, 60, 80 } } do
-			for _ = 1, 8 do
-				local x, z = ledgePoint(l[2], l[3])
-				local h = urng:NextNumber(5, 12)
-				mk("Seaweed", Vector3.new(1.2, h, 1.2), CFrame.new(x, l[1] + h / 2, z), Color3.fromRGB(40, 140 + urng:NextInteger(-20, 20), 80), fUnder, { deco = true })
+
+		-- Kelp Shallows: a kelp forest on the first ledge
+		for _ = 1, 34 do
+			local x, z = ledgePoint(100, 120)
+			local h = urng:NextNumber(12, 30)
+			local green = Color3.fromRGB(60 + urng:NextInteger(-10, 20), 140 + urng:NextInteger(-20, 25), 62)
+			mk("Kelp", Vector3.new(0.9, h, 0.9), CFrame.new(x, -50 + h / 2, z) * CFrame.Angles(0, 0, urng:NextNumber(-0.08, 0.08)), green, fUnder, { deco = true })
+			for k = 1, 3 do
+				local y = -50 + h * (0.3 + k * 0.2)
+				mk("KelpLeaf", Vector3.new(2.4, 0.3, 1), CFrame.new(x, y, z) * CFrame.Angles(0, k * 2.1, math.rad(25)) * CFrame.new(1, 0, 0), green:Lerp(Color3.new(1, 1, 0.6), 0.15), fUnder, { deco = true })
 			end
-			for _ = 1, 3 do
-				local x, z = ledgePoint(l[2], l[3])
-				local s = urng:NextNumber(3, 6)
-				mk("Rock", Vector3.new(s, s * 0.7, s), CFrame.new(x, l[1] + s * 0.35, z) * CFrame.Angles(0, urng:NextNumber(0, 3), 0), Color3.fromRGB(90, 100, 110), fUnder)
-			end
-			for _ = 1, 2 do
-				local x, z = ledgePoint(l[2], l[3])
-				local c = Color3.fromHSV(urng:NextNumber(0.92, 1.04) % 1, 0.55, 1)
-				for k = 1, 3 do
-					mk("Coral", Vector3.new(1.4, 2 + k, 1.4), CFrame.new(x + (k - 2) * 1.6, l[1] + (2 + k) / 2, z), c, fUnder, { deco = true })
+		end
+		for _ = 1, 8 do
+			local x, z = ledgePoint(100, 120)
+			local s = urng:NextNumber(3, 6)
+			mk("Rock", Vector3.new(s, s * 0.7, s), CFrame.new(x, -50 + s * 0.35, z) * CFrame.Angles(0, urng:NextNumber(0, 3), 0), Color3.fromRGB(110, 118, 124), fUnder)
+		end
+
+		-- Coral Reef: colourful coral on the second ledge
+		local corals = { Color3.fromRGB(255, 110, 130), Color3.fromRGB(255, 170, 70), Color3.fromRGB(170, 110, 255), Color3.fromRGB(80, 220, 210), Color3.fromRGB(255, 220, 90) }
+		for _ = 1, 22 do
+			local x, z = ledgePoint(80, 100)
+			local c = corals[urng:NextInteger(1, #corals)]
+			local kind = urng:NextInteger(1, 3)
+			local base = CFrame.new(x, -150, z) * CFrame.Angles(0, urng:NextNumber(0, 3), 0)
+			if kind == 1 then -- brain coral
+				local r = urng:NextNumber(2.5, 4.5)
+				mk("BrainCoral", Vector3.one * r, base * CFrame.new(0, r * 0.3, 0), c, fUnder, { shape = Enum.PartType.Ball, smooth = true, deco = true })
+			elseif kind == 2 then -- fan coral
+				local w = urng:NextNumber(3, 6)
+				mk("FanCoral", Vector3.new(w, w * 0.9, 0.3), base * CFrame.new(0, w * 0.45, 0), c, fUnder, { deco = true })
+				mk("FanStem", Vector3.new(0.5, 1.2, 0.5), base * CFrame.new(0, 0.6, 0), c:Lerp(Color3.new(0, 0, 0), 0.3), fUnder, { deco = true })
+			else -- tube coral
+				for k = 1, 4 do
+					local h = urng:NextNumber(2, 5)
+					cyl("TubeCoral", urng:NextNumber(0.6, 1.1), h, base * CFrame.new((k - 2.5) * 0.9, h / 2, urng:NextNumber(-0.6, 0.6)), c, fUnder, { deco = true })
 				end
 			end
 		end
-		for k = 1, 10 do
-			local h = urng:NextNumber(6, 14)
-			local a, r = k * 0.63, urng:NextNumber(26, 50) -- stay clear of the crystals in the middle
-			mk("Seaweed", Vector3.new(1.2, h, 1.2), CFrame.new(math.cos(a) * r, -300 + h / 2, math.sin(a) * r), Color3.fromRGB(40, 150, 90), fUnder, { deco = true })
+		for _ = 1, 10 do
+			local x, z = ledgePoint(80, 100)
+			local h = urng:NextNumber(5, 10)
+			mk("Seaweed", Vector3.new(1, h, 1), CFrame.new(x, -150 + h / 2, z), Color3.fromRGB(50, 150, 90), fUnder, { deco = true })
 		end
+
+		-- Deep Trench: dark rock arches and glowing crystals on the third ledge
+		local rockDark = Color3.fromRGB(58, 62, 74)
+		for _ = 1, 7 do
+			local x, z = ledgePoint(60, 80)
+			local base = CFrame.new(x, -250, z) * CFrame.Angles(0, urng:NextNumber(0, 3), 0)
+			local h = urng:NextNumber(10, 16)
+			for _, sx in { -1, 1 } do
+				mk("ArchRock", Vector3.new(3, h, 3), base * CFrame.new(sx * 4, h / 2, 0), rockDark, fUnder)
+			end
+			mk("ArchRock", Vector3.new(12, 3, 3.4), base * CFrame.new(0, h + 1.2, 0), rockDark, fUnder)
+		end
+		for _ = 1, 14 do
+			local x, z = ledgePoint(60, 80)
+			local h = urng:NextNumber(2, 5)
+			local glow = mk("TrenchCrystal", Vector3.new(1.2, h, 1.2), CFrame.new(x, -250 + h / 2, z) * CFrame.Angles(urng:NextNumber(-0.3, 0.3), urng:NextNumber(0, 3), urng:NextNumber(-0.3, 0.3)),
+				Color3.fromRGB(110, 140, 255), fUnder, { material = Enum.Material.Neon, deco = true })
+			if urng:NextNumber() < 0.4 then
+				light(glow, 18, Color3.fromRGB(120, 150, 255), 1.5)
+			end
+		end
+
+		-- The Abyss: glowing crystals on the floor
 		local crystal = mk("AbyssCrystal", Vector3.new(6, 12, 6), CFrame.new(0, -294, 0) * CFrame.Angles(0, math.rad(45), 0), Color3.fromRGB(80, 200, 255), fUnder, { material = Enum.Material.Neon })
 		light(crystal, 70, Color3.fromRGB(100, 210, 255), 3)
-		for _, o in { { 18, 14 }, { -20, 10 }, { 12, -22 }, { -14, -18 } } do
+		for _, o in { { 18, 14 }, { -20, 10 }, { 12, -22 }, { -14, -18 }, { 36, -30 }, { -38, 32 } } do
 			local c = mk("Crystal", Vector3.new(3, 6, 3), CFrame.new(o[1], -297, o[2]) * CFrame.Angles(0, 0.7, 0.2), Color3.fromRGB(120, 220, 255), fUnder, { material = Enum.Material.Neon })
 			light(c, 25, Color3.fromRGB(100, 210, 255), 2)
 		end
-		-- Sunken ship on the second ledge
+		for k = 1, 10 do
+			local h = urng:NextNumber(6, 14)
+			local ang, r = k * 0.63, urng:NextNumber(26, 50) -- stay clear of the crystals in the middle
+			mk("Seaweed", Vector3.new(1.2, h, 1.2), CFrame.new(math.cos(ang) * r, -300 + h / 2, math.sin(ang) * r), Color3.fromRGB(40, 150, 110), fUnder, { deco = true })
+		end
+
+		-- Sunken ship on the reef ledge
 		local cf = CFrame.new(-88, -150, 30) * CFrame.Angles(0, math.rad(20), math.rad(12))
 		mk("WreckHull", Vector3.new(10, 6, 30), cf * CFrame.new(0, 3, 0), WOOD_D, fUnder)
 		mk("WreckDeck", Vector3.new(9, 1, 26), cf * CFrame.new(0, 6.5, 0), WOOD2, fUnder)
@@ -441,9 +492,14 @@ local function build()
 			local len = math.sqrt((bx - ax) ^ 2 + (bz - az) ^ 2)
 			mk("Rail", Vector3.new(0.4, 0.4, len - 1.2), cf * CFrame.lookAt(Vector3.new((ax + bx) / 2, railY, (az + bz) / 2), Vector3.new(bx, railY, bz)), WOOD_D, parent, { noQuery = true })
 		end
-		rail(xl, zf, xr, zf)
+		-- Front rail has a gap in the middle for the ladder
+		rail(xl, zf, x - 1.8, zf)
+		rail(x + 1.8, zf, xr, zf)
 		rail(xl, zf, xl, zb)
 		rail(xr, zf, xr, zb)
+		-- Ladder down into the water so divers can climb back out
+		local ladder = mk("Ladder", Vector3.new(2, 10, 2), cf * CFrame.new(x, -3.8, DOCK_TO - PLAT_D - 1), WOOD_D, parent, { class = "TrussPart", noQuery = true })
+		ladder.Material = Enum.Material.Wood
 		lantern(cf * CFrame.new(xl, 2.6, zf), parent)
 
 		local zone = mk("Dock", Vector3.new(walkW, 1, walkLen), cf * CFrame.new(x, DECK_Y, (DOCK_FROM + DOCK_TO) / 2), WOOD1, parent, { deco = true, transparency = 1 })
@@ -539,10 +595,10 @@ local function build()
 				mk("RackPost", Vector3.new(0.6, 4, 0.6), R * CFrame.new(rx, 2.6, 0), WOOD_D, plot)
 			end
 			mk("RackBar", Vector3.new(7, 0.5, 0.5), R * CFrame.new(0, 4.3, 0), WOOD_D, plot)
-			for k, c in { WOOD1, GOLD, Color3.fromRGB(140, 80, 220) } do
+			for k = 1, 3 do
 				local rcf = R * CFrame.new(-3 + k * 1.5, 3.55, -0.9) * CFrame.Angles(math.rad(14), 0, 0)
-				cyl("RackRod", 0.3, 6, rcf, c, plot, { deco = true })
-				cyl("RackGrip", 0.45, 1, rcf * CFrame.new(0, -2.3, 0), WOOD_D, plot, { deco = true })
+				cyl("RackSpear", 0.22, 6, rcf, Color3.fromRGB(196, 202, 212), plot, { deco = true, material = Enum.Material.Metal })
+				mk("RackSpearTip", Vector3.new(0.4, 0.7, 0.4), rcf * CFrame.new(0, 3.2, 0) * CFrame.Angles(0, math.rad(45), 0), Color3.fromRGB(160, 166, 176), plot, { deco = true, material = Enum.Material.Metal })
 			end
 
 			-- Path from the gate to this base's dock, then the dock itself
@@ -599,8 +655,8 @@ local function build()
 			lampPost(CFrame.new(sx * 14.5, 0, 182), fTown, 7)
 		end
 		local beam = mk("ArchBeam", Vector3.new(24, 3, 3), CFrame.new(0, 16.5, 182), STONE_D, fTown)
-		signText(beam, Enum.NormalId.Front, "CASTLE FISHING", GOLD)
-		signText(beam, Enum.NormalId.Back, "CASTLE FISHING", GOLD)
+		signText(beam, Enum.NormalId.Front, "CASTLE SPEARFISHING", GOLD)
+		signText(beam, Enum.NormalId.Back, "CASTLE SPEARFISHING", GOLD)
 
 		-- Benches facing the plaza centre
 		for _, sx in { -1, 1 } do
@@ -623,7 +679,7 @@ local function build()
 			end
 		end
 
-		-- ROD SHOP (front faces the pond at z = 257)
+		-- GEAR SHOP (front faces the pond at z = 257)
 		local S = CFrame.new(0, 0, 266)
 		mk("ShopFoundation", Vector3.new(27, 1, 19), S * CFrame.new(0, 0.5, 0), STONE_D, fTown)
 		mk("ShopWalls", Vector3.new(26, 12, 18), S * CFrame.new(0, 7, 0), CREAM, fTown)
@@ -644,7 +700,7 @@ local function build()
 		mk("ChimneyCap", Vector3.new(3, 0.6, 3), S * CFrame.new(8, 22.3, 4), STONE, fTown)
 		-- Door (tagged so the game adds a "Browse Rods" prompt)
 		local door = mk("ShopDoor", Vector3.new(5, 8, 0.4), S * CFrame.new(0, 5, -9.2), WOOD2, fTown)
-		CollectionService:AddTag(door, "RodShop")
+		CollectionService:AddTag(door, "GearShop")
 		for _, sx in { -1, 1 } do
 			mk("DoorFrame", Vector3.new(0.6, 8.6, 0.5), S * CFrame.new(sx * 2.8, 5.3, -9.25), WOOD_D, fTown)
 		end
@@ -665,16 +721,17 @@ local function build()
 				mk("Bloom", Vector3.new(0.9, 0.9, 0.9), W * CFrame.new(-2.6 + k * 1.3, 8.6, -9.8), c, fTown, { deco = true })
 			end
 		end
-		board("ShopSign", 8.4, 1.8, S * CFrame.new(0, 11.0, -9.15), fTown, "ROD SHOP")
+		board("ShopSign", 8.4, 1.8, S * CFrame.new(0, 11.0, -9.15), fTown, "GEAR SHOP")
 		-- Rod rack beside the door
 		local RR = CFrame.new(-9, 0, 254.5)
 		for _, rx in { -2.6, 2.6 } do
 			mk("RackPost", Vector3.new(0.6, 4.4, 0.6), RR * CFrame.new(rx, 2.2, 0), WOOD_D, fTown)
 		end
 		mk("RackBar", Vector3.new(6, 0.5, 0.5), RR * CFrame.new(0, 4.1, 0), WOOD_D, fTown)
-		for k, c in { WOOD1, Color3.fromRGB(90, 90, 96), GOLD } do
+		for k = 1, 3 do
 			local rcf = RR * CFrame.new(-3 + k * 1.5, 3.1, -1) * CFrame.Angles(math.rad(16), 0, 0)
-			cyl("DisplayRod", 0.3, 6, rcf, c, fTown, { deco = true })
+			cyl("DisplaySpear", 0.22, 6, rcf, Color3.fromRGB(196, 202, 212), fTown, { deco = true, material = Enum.Material.Metal })
+			mk("DisplaySpearTip", Vector3.new(0.4, 0.7, 0.4), rcf * CFrame.new(0, 3.2, 0) * CFrame.Angles(0, math.rad(45), 0), Color3.fromRGB(160, 166, 176), fTown, { deco = true, material = Enum.Material.Metal })
 		end
 		for _, sx in { -1, 1 } do
 			lampPost(CFrame.new(sx * 5, 0, 247), fTown, 6)
@@ -730,7 +787,7 @@ local function build()
 		title.Size = UDim2.new(1, 0, 0.26, 0)
 		title.BackgroundTransparency = 1
 		title.FontFace = SIGN_FONT
-		title.Text = "HOW TO FISH"
+		title.Text = "HOW TO SPEARFISH"
 		title.TextScaled = true
 		title.TextColor3 = Color3.fromRGB(150, 60, 40)
 		title.Parent = g
@@ -739,7 +796,7 @@ local function build()
 		body.Position = UDim2.new(0.07, 0, 0.28, 0)
 		body.BackgroundTransparency = 1
 		body.FontFace = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
-		body.Text = "1. Press 1 to hold your rod\n2. Click the water to cast\n3. Wait for the  !\n4. Hold click to reel it in\n5. Sell at the Fish Market"
+		body.Text = "1. Press 1 to hold your speargun\n2. Dive into the pond\n3. Aim at a fish and click to fire\n4. Watch your air, surface to refill\n5. Sell at the Fish Market"
 		body.TextScaled = true
 		body.TextXAlignment = Enum.TextXAlignment.Left
 		body.TextColor3 = Color3.fromRGB(70, 50, 30)
@@ -863,7 +920,7 @@ local function build()
 	end)
 
 	if failed == 0 then
-		print("[BuildMap] Done! 8 bases with private docks, 4 public piers, Rod Shop, Fish Market.")
+		print("[BuildMap] Done! 8 bases with docks and ladders, 4 public piers, Gear Shop, Fish Market, 4 dive zones.")
 	else
 		warn("[BuildMap] Finished with " .. failed .. " problem(s). Send a screenshot of the orange lines above.")
 	end
