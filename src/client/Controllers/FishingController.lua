@@ -272,7 +272,7 @@ local function startMinigame(difficulty: number)
 		Parent = root,
 	}, { Kit.corner(14), Kit.gradient(Color3.fromRGB(110, 200, 255), Color3.fromRGB(20, 70, 150)) })
 
-	local zoneSize = math.clamp(0.28 * rod.Control / (0.6 + difficulty * 0.4), 0.12, 0.5)
+	local zoneSize = math.clamp(0.4 * rod.Control / (0.5 + difficulty * 0.5), 0.15, 0.6)
 	local zone = make("Frame", {
 		Size = UDim2.new(1, -8, zoneSize, 0),
 		AnchorPoint = Vector2.new(0, 1),
@@ -292,15 +292,16 @@ local function startMinigame(difficulty: number)
 	-- 0 = bottom, 1 = top
 	local zonePos, zoneVel = 0, 0
 	local fishPos, fishTarget, fishTimer = 0.5, 0.5, 0
-	local progress = 0.3
+	local progress = 0.35
+	local startedAt = os.clock()
 	local myToken = token
 	local trackX = track.Position
 
 	local conn
 	conn = RunService.RenderStepped:Connect(function(dt)
 		dt = math.min(dt, 1 / 20)
-		zoneVel += (if holding then 2.6 else -2.2) * dt
-		zoneVel = math.clamp(zoneVel, -1.4, 1.4)
+		zoneVel += (if holding then 1.9 else -1.5) * dt
+		zoneVel = math.clamp(zoneVel, -0.9, 0.9)
 		zonePos += zoneVel * dt
 		if zonePos <= 0 then
 			zonePos, zoneVel = 0, math.max(zoneVel, 0) * 0.3
@@ -310,14 +311,18 @@ local function startMinigame(difficulty: number)
 
 		fishTimer -= dt
 		if fishTimer <= 0 then
-			fishTarget = math.random()
-			fishTimer = (0.5 + math.random() * 1.3) / difficulty
+			-- short hops, not jumps across the whole bar
+			local hop = (0.12 + math.random() * 0.12 * difficulty) * (if math.random() < 0.5 then -1 else 1)
+			fishTarget = math.clamp(fishPos + hop, 0.05, 0.95)
+			fishTimer = (0.9 + math.random() * 1.4) / difficulty
 		end
 		local prev = fishPos
-		fishPos += (fishTarget - fishPos) * math.min(1, dt * (1.2 + difficulty * 1.3))
+		fishPos += (fishTarget - fishPos) * math.min(1, dt * (0.4 + difficulty * 1.0))
 
 		local inside = fishPos >= zonePos and fishPos <= zonePos + zoneSize
-		progress = math.clamp(progress + (if inside then 0.28 else -0.2 * (0.7 + difficulty * 0.3)) * dt, 0, 1)
+		local grace = os.clock() - startedAt < 1 -- no losing progress in the first second
+		local change = if inside then 0.34 elseif grace then 0 else -0.1 * difficulty
+		progress = math.clamp(progress + change * dt, 0, 1)
 
 		zone.Position = UDim2.new(0, 4, 1 - zonePos, 0)
 		fish.Position = UDim2.fromScale(0, 1 - fishPos)

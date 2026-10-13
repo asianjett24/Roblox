@@ -40,7 +40,7 @@ Config.Rod = {
 	Length = 7, -- studs, butt to tip
 	GripAt = 0.14, -- where the hand holds it (fraction of length from the butt)
 	Tilt = 35, -- degrees the rod leans forward in your hand
-	Flip = false, -- set true if the rod is held by the wrong end
+	Flip = true, -- swap which end is held (true is right for the Quaternius rod)
 	Spin = 0, -- degrees to turn the rod around its own length (e.g. 180 if the reel faces up)
 }
 

@@ -8,7 +8,9 @@
 --     require(workspace.BuildMap)()
 -- WARNING: wipes Terrain and replaces the "Map" folder.
 
-return function()
+local MAP_VERSION = 5
+
+local function build()
 	local CollectionService = game:GetService("CollectionService")
 	local Lighting = game:GetService("Lighting")
 
@@ -36,6 +38,7 @@ return function()
 
 	local map = Instance.new("Folder")
 	map.Name = "Map"
+	map:SetAttribute("Version", MAP_VERSION)
 	map.Parent = workspace
 	local function folder(name)
 		local f = Instance.new("Folder")
@@ -67,7 +70,7 @@ return function()
 	local ROOF = Color3.fromRGB(184, 68, 60)
 	local ROOF_D = Color3.fromRGB(140, 48, 44)
 	local GOLD = Color3.fromRGB(240, 196, 72)
-	local LAMP = Color3.fromRGB(255, 214, 140)
+	local LAMP = Color3.fromRGB(255, 186, 104)
 
 	-- Layout (studs). Each side of the island uses the same local frame:
 	-- x runs along the side, +z points from the pond out toward that side's wall.
@@ -849,7 +852,7 @@ return function()
 		atm.Decay = Color3.fromRGB(110, 150, 200)
 		atm.Parent = Lighting
 		local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
-		bloom.Intensity = 0.3
+		bloom.Intensity = 0.2
 		bloom.Size = 24
 		bloom.Threshold = 1.2
 		bloom.Parent = Lighting
@@ -865,3 +868,10 @@ return function()
 		warn("[BuildMap] Finished with " .. failed .. " problem(s). Send a screenshot of the orange lines above.")
 	end
 end
+
+-- Callable like a function: require(game.ServerStorage.BuildMap)()
+return setmetatable({ Version = MAP_VERSION }, {
+	__call = function()
+		build()
+	end,
+})

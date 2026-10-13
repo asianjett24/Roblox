@@ -32,7 +32,7 @@ local hasData = false
 local coinValue = Instance.new("NumberValue")
 
 local function coins(n)
-	return "🪙 " .. Format.Number(n)
+	return "$" .. Format.Number(n)
 end
 
 local function clear(container)
@@ -344,7 +344,7 @@ local function buildDock()
 		return text("", 20, F.Black, C.Good, { Position = UDim2.new(1, -16, 0, 14), AnchorPoint = Vector2.new(1, 0), Parent = row })
 	end
 	local luck = statRow(100, "🍀", "Luck bonus")
-	local speed = statRow(160, "⏱️", "Bite speed bonus")
+	local speed = statRow(160, "⚡", "Bite speed bonus")
 	text("Fish from your own base's dock to catch dock-only fish and get these bonuses.", 15, F.Medium, C.Sub, {
 		Size = UDim2.new(1, -24, 0, 40), Position = UDim2.fromOffset(12, 222), AutomaticSize = Enum.AutomaticSize.None,
 		TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = p.Body,
@@ -475,9 +475,18 @@ function UIController.Init()
 		UIKit.list(Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Center),
 	})
 	coinPill = pill(190, top, 1)
-	coinsLabel = text(coins(0), 22, F.Black, C.Gold, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Parent = coinPill })
+	local coinRow = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = coinPill }, {
+		UIKit.list(Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
+	})
+	local coinIcon = make("Frame", { Size = UDim2.fromOffset(26, 26), BackgroundColor3 = C.Gold, LayoutOrder = 1, Parent = coinRow }, {
+		UIKit.round(),
+		UIKit.gradient(Color3.fromRGB(255, 236, 150), Color3.fromRGB(230, 160, 40)),
+		make("UIStroke", { Color = Color3.fromRGB(170, 110, 20), Thickness = 2 }),
+	})
+	text("$", 17, F.Black, Color3.fromRGB(150, 95, 15), { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Parent = coinIcon })
+	coinsLabel = text("0", 22, F.Black, C.Gold, { LayoutOrder = 2, Parent = coinRow })
 	coinValue.Changed:Connect(function(v)
-		coinsLabel.Text = coins(math.floor(v + 0.5))
+		coinsLabel.Text = Format.Number(math.floor(v + 0.5))
 	end)
 	local bagPill = pill(150, top, 2)
 	bagLabel = text("🐟 0 / " .. Config.InventoryCap, 20, F.Black, C.Text, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Parent = bagPill })

@@ -3,11 +3,11 @@ local FishData = {}
 
 FishData.Rarities = {
 	{ Name = "Common", Weight = 60, Color = Color3.fromRGB(200, 200, 200), Difficulty = 1 },
-	{ Name = "Uncommon", Weight = 25, Color = Color3.fromRGB(90, 220, 110), Difficulty = 1.3 },
-	{ Name = "Rare", Weight = 10, Color = Color3.fromRGB(70, 150, 255), Difficulty = 1.7 },
-	{ Name = "Epic", Weight = 4, Color = Color3.fromRGB(180, 90, 255), Difficulty = 2.2 },
-	{ Name = "Legendary", Weight = 0.9, Color = Color3.fromRGB(255, 190, 40), Difficulty = 2.8 },
-	{ Name = "Mythic", Weight = 0.1, Color = Color3.fromRGB(255, 70, 110), Difficulty = 3.5 },
+	{ Name = "Uncommon", Weight = 25, Color = Color3.fromRGB(90, 220, 110), Difficulty = 1.15 },
+	{ Name = "Rare", Weight = 10, Color = Color3.fromRGB(70, 150, 255), Difficulty = 1.35 },
+	{ Name = "Epic", Weight = 4, Color = Color3.fromRGB(180, 90, 255), Difficulty = 1.6 },
+	{ Name = "Legendary", Weight = 0.9, Color = Color3.fromRGB(255, 190, 40), Difficulty = 1.9 },
+	{ Name = "Mythic", Weight = 0.1, Color = Color3.fromRGB(255, 70, 110), Difficulty = 2.3 },
 }
 
 FishData.RarityIndex = {}
