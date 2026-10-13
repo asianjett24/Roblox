@@ -1,5 +1,6 @@
 *.rbxl
 !CastleFishing.rbxm
+!BuildMap.rbxm
 *.rbxlx
 *.rbxl.lock
 *.rbxlx.lock

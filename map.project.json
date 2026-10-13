@@ -1,0 +1,4 @@
+{
+  "name": "BuildMap",
+  "tree": { "$path": "map/BuildMap.lua" }
+}

@@ -2,9 +2,11 @@
 -- Stud-brick island, castle walls, deep pond, 8 bases with matching docks, 4 public piers,
 -- rod shop + fish market. Everything is tagged so the game scripts find it automatically.
 --
--- HOW TO RUN: View > Command Bar, paste this whole file in, press Enter.
+-- HOW TO RUN: insert BuildMap.rbxm into Workspace, then type this in the Command Bar and press Enter:
+--     require(workspace.BuildMap)()
 -- WARNING: terrain:Clear() wipes terrain, and the old "Map" folder is replaced.
 
+return function()
 local CollectionService = game:GetService("CollectionService")
 
 local terrain = workspace.Terrain
@@ -711,4 +713,6 @@ if failed == 0 then
 	print("[BuildMap] Map v4 built: 8 bases with private docks, 4 public piers, rod shop, fish market.")
 else
 	warn("[BuildMap] Finished with " .. failed .. " problem(s). Send a screenshot of the orange lines above.")
+end
+
 end
