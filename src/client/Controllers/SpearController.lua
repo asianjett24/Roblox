@@ -337,8 +337,8 @@ local function buildViewmodel(gunInfo)
 	end
 	local function arm()
 		return {
-			Forearm = vmPart(model, Vector3.new(0.5, 0.5, 2), SUIT),
-			Cuff = vmPart(model, Vector3.new(0.56, 0.56, 0.16), CUFF, Enum.Material.Neon),
+			Forearm = vmPart(model, Vector3.new(0.42, 0.42, 2), SUIT),
+			Cuff = vmPart(model, Vector3.new(0.48, 0.48, 0.14), CUFF, Enum.Material.Neon),
 			Hand = vmPart(model, Vector3.new(0.4, 0.46, 0.5), GLOVE),
 			Thumb = vmPart(model, Vector3.new(0.16, 0.16, 0.32), GLOVE),
 		}
@@ -367,7 +367,7 @@ end
 -- Places a forearm from elbow to wrist, then the hand and cuff.
 local function poseArm(a, wrist: Vector3, elbow: Vector3, handCF: CFrame, parts, cfs)
 	local len = (wrist - elbow).Magnitude
-	a.Forearm.Size = Vector3.new(0.5, 0.5, len)
+	a.Forearm.Size = Vector3.new(0.42, 0.42, len)
 	local fore = CFrame.lookAt((wrist + elbow) / 2, wrist)
 	table.insert(parts, a.Forearm)
 	table.insert(cfs, fore)
@@ -421,7 +421,7 @@ local function updateViewmodel(dt: number)
 
 	local gripCF = cam
 		* CFrame.new(vmState.SwayX * 0.6, vmState.SwayY * 0.6, 0)
-		* CFrame.new(0.95, -1.08 - (1 - raise) * 1.4 + math.sin(vmState.Bob) * bobAmp, -1.85 + kick * 0.45)
+		* CFrame.new(1.0, -1.18 - (1 - raise) * 1.4 + math.sin(vmState.Bob) * bobAmp, -2.35 + kick * 0.45)
 		* CFrame.Angles(math.rad(1.5) + kick * 0.2 + vmState.SwayY * 0.4, math.rad(2.5) - vmState.SwayX * 0.5, math.cos(vmState.Bob * 0.5) * bobAmp * 0.6 - vmState.SwayX * 0.3)
 	vm.Gun:PivotTo(gripCF)
 
@@ -429,7 +429,7 @@ local function updateViewmodel(dt: number)
 	local s = VM_SCALE
 	-- right hand wraps the pistol grip
 	local rHand = gripCF * CFrame.new(0.06, -0.02, 0.02)
-	poseArm(vm.R, (rHand * CFrame.new(0.05, -0.1, 0.35)).Position, (cam * CFrame.new(1.55, -2.4, -0.2)).Position, rHand, parts, cfs)
+	poseArm(vm.R, (rHand * CFrame.new(0.05, -0.1, 0.35)).Position, (cam * CFrame.new(1.6, -2.5, -0.6)).Position, rHand, parts, cfs)
 	-- left hand: under the barrel, or pulling the bands back while reloading
 	local p = reloadProgress()
 	local support = Vector3.new(0, 0.12 * s, -1.75 * s)
@@ -446,7 +446,7 @@ local function updateViewmodel(dt: number)
 	end
 	setVmSpear(p >= 0.72)
 	local lHand = gripCF * CFrame.new(lLocal) * CFrame.Angles(0, 0, math.rad(-90))
-	poseArm(vm.L, (lHand * CFrame.new(0.3, 0, 0.3)).Position, (cam * CFrame.new(-1.1, -2.5, -0.3)).Position, lHand, parts, cfs)
+	poseArm(vm.L, (lHand * CFrame.new(0.3, 0, 0.3)).Position, (cam * CFrame.new(-0.9, -2.6, -0.8)).Position, lHand, parts, cfs)
 	workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 end
 
