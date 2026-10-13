@@ -286,28 +286,105 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 end
 
 -- First-person viewmodel ------------------------------------------------------------------------
+-- The gun plus copies of your own avatar's arms (with your shirt and skin colour), posed
+-- with simple two-bone IK so your hands hold the grip and the barrel.
 local VM_SCALE = 0.72
-local SUIT = Color3.fromRGB(30, 34, 48)
-local GLOVE = Color3.fromRGB(46, 52, 70)
-local CUFF = Color3.fromRGB(40, 200, 255)
+local REACH = 2.4 -- upper + lower arm length in the viewmodel (every avatar is scaled to this)
+local THICK = 0.42 -- arms are slimmed down so they don't fill the screen
+local SKIN = Color3.fromRGB(234, 184, 146)
 
-local vm = nil -- { Model, Gun, Muzzle, Spears, R = {forearm, hand, cuff}, L = {...} }
+local vm = nil -- { Model, Gun, Muzzle, Spears, Arms = { R = arm, L = arm } }
 local vmState = { Raise = 0, SwayX = 0, SwayY = 0, Bob = 0, LastLook = nil }
 
-local function vmPart(parent, size, color, material)
-	local p = Instance.new("Part")
+local LIMBS = {
+	R = { "RightUpperArm", "RightLowerArm", "RightHand", "Right Arm" },
+	L = { "LeftUpperArm", "LeftLowerArm", "LeftHand", "Left Arm" },
+}
+
+local function prepLimb(p: BasePart, k: number, parent)
+	for _, c in p:GetChildren() do
+		if not (c:IsA("SpecialMesh") or c:IsA("SurfaceAppearance") or c:IsA("Decal")) then
+			c:Destroy()
+		end
+	end
 	p.Anchored = true
 	p.CanCollide = false
 	p.CanQuery = false
 	p.CanTouch = false
 	p.CastShadow = false
-	p.Size = size
-	p.Color = color
-	p.Material = material or Enum.Material.SmoothPlastic
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Massless = true
+	p.LocalTransparencyModifier = 0
+	p.Size = Vector3.new(p.Size.X * k * THICK, p.Size.Y * k, p.Size.Z * k * THICK)
 	p.Parent = parent
 	return p
+end
+
+-- Copies one limb of the character (nil if it can't be copied).
+local function copyLimb(char: Model, name: string, k: number, parent)
+	local src = char:FindFirstChild(name)
+	if not src or not src:IsA("BasePart") then
+		return nil
+	end
+	local ok, copy = pcall(function()
+		local was = src.Archivable
+		src.Archivable = true
+		local c = src:Clone()
+		src.Archivable = was
+		return c
+	end)
+	if not ok or not copy then
+		return nil
+	end
+	return prepLimb(copy, k, parent)
+end
+
+-- Plain Roblox-proportioned limb in the avatar's skin colour (if copying isn't possible)
+local function plainLimb(name: string, size: Vector3, color: Color3, parent)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	return prepLimb(p, 1, parent)
+end
+
+local function buildArm(char: Model?, side: string, model)
+	local names = LIMBS[side]
+	if char then
+		local upper, lower, hand = char:FindFirstChild(names[1]), char:FindFirstChild(names[2]), char:FindFirstChild(names[3])
+		if upper and lower and hand then
+			local k = REACH / (upper.Size.Y + lower.Size.Y)
+			local u, l, h = copyLimb(char, names[1], k, model), copyLimb(char, names[2], k, model), copyLimb(char, names[3], k, model)
+			if u and l and h then
+				return { Upper = u, Lower = l, Hand = h, Lu = u.Size.Y, Ll = l.Size.Y, Lh = h.Size.Y }
+			end
+			for _, x in { u, l, h } do
+				if x then
+					x:Destroy()
+				end
+			end
+		end
+		local whole = char:FindFirstChild(names[4])
+		if whole and whole:IsA("BasePart") then
+			local a = copyLimb(char, names[4], (REACH + 0.3) / whole.Size.Y, model)
+			if a then
+				return { Whole = a, L = a.Size.Y }
+			end
+		end
+	end
+	-- fallback: blocky R15 proportions in the avatar's skin colour
+	local color = SKIN
+	local ref = char and (char:FindFirstChild(names[3]) or char:FindFirstChild(names[4]))
+	if ref and ref:IsA("BasePart") then
+		color = ref.Color
+	end
+	local k = REACH / 2.22
+	local u = plainLimb(names[1], Vector3.new(1, 1.17, 1) * k, color, model)
+	local l = plainLimb(names[2], Vector3.new(1, 1.05, 1) * k, color, model)
+	local h = plainLimb(names[3], Vector3.new(1, 0.3, 1) * k, color, model)
+	return { Upper = u, Lower = l, Hand = h, Lu = u.Size.Y, Ll = l.Size.Y, Lh = h.Size.Y }
 end
 
 local function destroyViewmodel()
@@ -335,21 +412,34 @@ local function buildViewmodel(gunInfo)
 			end
 		end
 	end
-	local function arm()
-		return {
-			Forearm = vmPart(model, Vector3.new(0.42, 0.42, 2), SUIT),
-			Cuff = vmPart(model, Vector3.new(0.48, 0.48, 0.14), CUFF, Enum.Material.Neon),
-			Hand = vmPart(model, Vector3.new(0.4, 0.46, 0.5), GLOVE),
-			Thumb = vmPart(model, Vector3.new(0.16, 0.16, 0.32), GLOVE),
-		}
+	local char = player.Character
+	local arms = { R = buildArm(char, "R", model), L = buildArm(char, "L", model) }
+	-- a Humanoid with your shirt + body colours makes the copied arms wear your clothes
+	if char then
+		local h = Instance.new("Humanoid")
+		h.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		h.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		h.RequiresNeck = false
+		h.BreakJointsOnDeath = false
+		h.EvaluateStateMachine = false
+		h.Parent = model
+		for _, c in char:GetChildren() do
+			if c:IsA("Shirt") or c:IsA("BodyColors") then
+				local ok, copy = pcall(function()
+					return c:Clone()
+				end)
+				if ok and copy then
+					copy.Parent = model
+				end
+			end
+		end
 	end
 	vm = {
 		Model = model,
 		Gun = g,
 		Muzzle = g.Handle:FindFirstChild("Muzzle"),
 		Spears = spears,
-		R = arm(),
-		L = arm(),
+		Arms = arms,
 		SpearShown = true,
 	}
 	vmState.Raise = 0
@@ -364,19 +454,45 @@ local function setVmSpear(visible: boolean)
 	end
 end
 
--- Places a forearm from elbow to wrist, then the hand and cuff.
-local function poseArm(a, wrist: Vector3, elbow: Vector3, handCF: CFrame, parts, cfs)
-	local len = (wrist - elbow).Magnitude
-	a.Forearm.Size = Vector3.new(0.42, 0.42, len)
-	local fore = CFrame.lookAt((wrist + elbow) / 2, wrist)
-	table.insert(parts, a.Forearm)
-	table.insert(cfs, fore)
-	table.insert(parts, a.Cuff)
-	table.insert(cfs, fore * CFrame.new(0, 0, -len / 2 + 0.12))
-	table.insert(parts, a.Hand)
-	table.insert(cfs, handCF)
-	table.insert(parts, a.Thumb)
-	table.insert(cfs, handCF * CFrame.new(-0.2, 0.12, -0.18) * CFrame.Angles(0, 0.4, 0))
+-- A part whose +Y axis runs from `bottom` up to `top` (how Roblox arm parts are built).
+local function boneCF(top: Vector3, bottom: Vector3, sideHint: Vector3): CFrame
+	local up = top - bottom
+	up = if up.Magnitude > 1e-4 then up.Unit else Vector3.new(0, 1, 0)
+	local right = sideHint - up * sideHint:Dot(up)
+	right = if right.Magnitude > 1e-4 then right.Unit else up:Cross(Vector3.new(0, 0, 1)).Unit
+	return CFrame.fromMatrix((top + bottom) / 2, right, up)
+end
+
+-- Poses one arm so its fist lands on `fist` (world). shoulder/pole/side are world vectors.
+local function poseArm(arm, shoulder: Vector3, fist: Vector3, pole: Vector3, side: Vector3, parts, cfs)
+	if arm.Whole then
+		local dir = (fist - shoulder)
+		dir = if dir.Magnitude > 1e-4 then dir.Unit else Vector3.new(0, 0, -1)
+		local bottom = fist + dir * 0.15
+		table.insert(parts, arm.Whole)
+		table.insert(cfs, boneCF(bottom - dir * arm.L, bottom, side))
+		return
+	end
+	local l1, l2 = arm.Lu, arm.Ll
+	local toFist = fist - shoulder
+	local dir = if toFist.Magnitude > 1e-4 then toFist.Unit else Vector3.new(0, 0, -1)
+	local wristTarget = fist - dir * arm.Lh * 0.5
+	local d = wristTarget - shoulder
+	local dist = math.clamp(d.Magnitude, math.abs(l1 - l2) + 0.02, l1 + l2 - 0.02)
+	dir = if d.Magnitude > 1e-4 then d.Unit else dir
+	local a = (l1 * l1 - l2 * l2 + dist * dist) / (2 * dist)
+	local h = math.sqrt(math.max(l1 * l1 - a * a, 0))
+	local perp = pole - dir * pole:Dot(dir)
+	perp = if perp.Magnitude > 1e-4 then perp.Unit else Vector3.new(0, -1, 0)
+	local elbow = shoulder + dir * a + perp * h
+	local wrist = shoulder + dir * dist
+	local foreDir = (wrist - elbow).Unit
+	table.insert(parts, arm.Upper)
+	table.insert(cfs, boneCF(shoulder, elbow, side))
+	table.insert(parts, arm.Lower)
+	table.insert(cfs, boneCF(elbow, wrist, side))
+	table.insert(parts, arm.Hand)
+	table.insert(cfs, boneCF(wrist, wrist + foreDir * arm.Lh, side))
 end
 
 local function reloadProgress(): number
@@ -418,35 +534,38 @@ local function updateViewmodel(dt: number)
 	vmState.Raise = math.min(1, vmState.Raise + dt * 4)
 	local raise = 1 - (1 - vmState.Raise) ^ 3
 	local kick = recoil * recoil
+	-- while reloading the gun comes back and tilts so the left hand can pull the bands
+	local p = reloadProgress()
+	local tilt = if p < 1 then math.sin(p * math.pi) else 0
 
 	local gripCF = cam
 		* CFrame.new(vmState.SwayX * 0.6, vmState.SwayY * 0.6, 0)
-		* CFrame.new(1.0, -1.18 - (1 - raise) * 1.4 + math.sin(vmState.Bob) * bobAmp, -2.35 + kick * 0.45)
-		* CFrame.Angles(math.rad(1.5) + kick * 0.2 + vmState.SwayY * 0.4, math.rad(2.5) - vmState.SwayX * 0.5, math.cos(vmState.Bob * 0.5) * bobAmp * 0.6 - vmState.SwayX * 0.3)
+		* CFrame.new(1.0 - tilt * 0.25, -1.18 - (1 - raise) * 1.4 + math.sin(vmState.Bob) * bobAmp + tilt * 0.12, -2.35 + kick * 0.45 + tilt * 0.5)
+		* CFrame.Angles(math.rad(1.5) + kick * 0.2 + vmState.SwayY * 0.4 + tilt * 0.15, math.rad(2.5) - vmState.SwayX * 0.5 + tilt * 0.12, math.cos(vmState.Bob * 0.5) * bobAmp * 0.6 - vmState.SwayX * 0.3 - tilt * 0.35)
 	vm.Gun:PivotTo(gripCF)
 
 	local parts, cfs = {}, {}
 	local s = VM_SCALE
-	-- right hand wraps the pistol grip
-	local rHand = gripCF * CFrame.new(0.06, -0.02, 0.02)
-	poseArm(vm.R, (rHand * CFrame.new(0.05, -0.1, 0.35)).Position, (cam * CFrame.new(1.6, -2.5, -0.6)).Position, rHand, parts, cfs)
-	-- left hand: under the barrel, or pulling the bands back while reloading
-	local p = reloadProgress()
-	local support = Vector3.new(0, 0.12 * s, -1.75 * s)
-	local front = Vector3.new(0, 0.95 * s, -3.75 * s)
-	local notch = Vector3.new(0, 1.05 * s, -1.25 * s)
+	local side = cam.RightVector
+	-- right fist on the pistol grip
+	poseArm(vm.Arms.R, (cam * CFrame.new(1.25, -1.7, -0.6)).Position, (gripCF * CFrame.new(0.03, 0.02, 0.04)).Position,
+		cam:VectorToWorldSpace(Vector3.new(0.7, -1, 0.3)), side, parts, cfs)
+	-- left fist under the barrel, or pulling the bands back while reloading
+	local support = Vector3.new(-0.05, 0.1, -0.95)
+	local band = Vector3.new(0, 0.85 * s, -1.6 * s)
+	local notch = Vector3.new(0, 1.0 * s, -0.75 * s)
 	local lLocal
 	if p < 0.3 then
-		lLocal = support:Lerp(front, math.sin(p / 0.3 * math.pi / 2))
+		lLocal = support:Lerp(band, math.sin(p / 0.3 * math.pi / 2))
 	elseif p < 0.75 then
 		local a = (p - 0.3) / 0.45
-		lLocal = front:Lerp(notch, a * a * (3 - 2 * a))
+		lLocal = band:Lerp(notch, a * a * (3 - 2 * a))
 	else
 		lLocal = notch:Lerp(support, (p - 0.75) / 0.25)
 	end
 	setVmSpear(p >= 0.72)
-	local lHand = gripCF * CFrame.new(lLocal) * CFrame.Angles(0, 0, math.rad(-90))
-	poseArm(vm.L, (lHand * CFrame.new(0.3, 0, 0.3)).Position, (cam * CFrame.new(-0.9, -2.6, -0.8)).Position, lHand, parts, cfs)
+	poseArm(vm.Arms.L, (cam * CFrame.new(-0.5, -1.85, -1.4)).Position, (gripCF * CFrame.new(lLocal)).Position,
+		cam:VectorToWorldSpace(Vector3.new(-0.8, -1, 0)), side, parts, cfs)
 	workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 end
 
