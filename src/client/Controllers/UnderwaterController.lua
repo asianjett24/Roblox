@@ -33,24 +33,25 @@ end
 local function pill(parent, size, pos, anchor)
 	local make = Kit.make
 	local holder = make("Frame", { Size = size, Position = pos, AnchorPoint = anchor, BackgroundTransparency = 1, Parent = parent })
-	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 5), BackgroundColor3 = Kit.Color.Ink, BackgroundTransparency = 0.3, Parent = holder }, { Kit.corner(18) })
+	Kit.softShadow(holder, 14, 6, 0.55)
 	local face = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = holder }, {
 		Kit.corner(18),
-		make("UIGradient", { Color = ColorSequence.new(Kit.Swatch.navy[1], Kit.Swatch.navy[2]), Rotation = 90 }),
+		make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(62, 98, 182), Color3.fromRGB(34, 56, 120)), Rotation = 90 }),
 		Kit.outline(3),
 	})
+	Kit.shine(face, 14)
 	return holder, face
 end
 
 local function buildHud(gui)
 	local C, F, make, text = Kit.Color, Kit.Font, Kit.make, Kit.text
-	local root = make("Frame", { Size = UDim2.fromOffset(560, 96), Position = UDim2.new(0.5, 0, 1, -68), AnchorPoint = Vector2.new(0.5, 1), BackgroundTransparency = 1, Visible = false, Parent = gui })
+	local root = make("Frame", { Size = UDim2.fromOffset(560, 96), Position = UDim2.new(0.5, 0, 1, -80), AnchorPoint = Vector2.new(0.5, 1), BackgroundTransparency = 1, Visible = false, Parent = gui })
 	local scale = make("UIScale", { Scale = 0.74, Parent = root })
 
 	-- depth + zone (left)
 	local _, depthFace = pill(root, UDim2.fromOffset(150, 84), UDim2.fromOffset(0, 0))
 	Kit.icon("helmet", 26, nil, { Position = UDim2.fromOffset(10, 10), Parent = depthFace })
-	local depth = text("0m", 30, F.Title, C.Text, { Position = UDim2.fromOffset(40, 4), Parent = depthFace })
+	local depth = Kit.fitText("0m", 30, C.Text, { Size = UDim2.new(1, -50, 0, 34), Position = UDim2.fromOffset(40, 6), TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2, Parent = depthFace })
 	local zone = text("", 14, F.Title, C.Sub, { Size = UDim2.new(1, -18, 0, 18), Position = UDim2.fromOffset(10, 46), AutomaticSize = Enum.AutomaticSize.None, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = depthFace })
 	local guard = text("", 13, F.Title, C.Text, { Size = UDim2.new(1, -18, 0, 16), Position = UDim2.fromOffset(10, 62), AutomaticSize = Enum.AutomaticSize.None, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = depthFace })
 
@@ -59,12 +60,12 @@ local function buildHud(gui)
 	Kit.icon("tank", 34, nil, { Position = UDim2.fromOffset(10, 8), Parent = airFace })
 	local airLabel = text("AIR", 22, F.Title, C.Text, { Position = UDim2.fromOffset(52, 8), Parent = airFace })
 	local seconds = text("", 22, F.Title, C.Text, { Position = UDim2.new(1, -14, 0, 8), AnchorPoint = Vector2.new(1, 0), Parent = airFace })
-	local track = make("Frame", { Size = UDim2.new(1, -24, 0, 24), Position = UDim2.fromOffset(12, 48), BackgroundColor3 = C.WellLo, ClipsDescendants = true, Parent = airFace }, { Kit.round(), Kit.outline(3) })
-	local fill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track }, {
+	local track = make("Frame", { Size = UDim2.new(1, -24, 0, 24), Position = UDim2.fromOffset(12, 48), BackgroundColor3 = C.WellLo, ClipsDescendants = true, ZIndex = 2, Parent = airFace }, { Kit.round() })
+	local fill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 2, Parent = track }, {
 		Kit.round(),
 		make("UIGradient", { Name = "G", Color = ColorSequence.new(Color3.fromRGB(120, 225, 255), Color3.fromRGB(40, 140, 245)), Rotation = 90 }),
 	})
-	make("Frame", { Size = UDim2.new(1, -8, 0.35, 0), Position = UDim2.fromOffset(4, 2), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.6, Parent = fill }, { Kit.round() })
+	make("Frame", { Size = UDim2.new(1, -8, 0.35, 0), Position = UDim2.fromOffset(4, 2), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.6, ZIndex = 2, Parent = fill }, { Kit.round() })
 	local airScale = make("UIScale", { Parent = airHolder })
 
 	-- dash (right)
@@ -75,15 +76,16 @@ local function buildHud(gui)
 
 	-- zone banner
 	local banner = make("Frame", { Size = UDim2.fromOffset(330, 58), Position = UDim2.new(0.5, 0, 0, -200), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = gui })
-	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 4), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = banner }, { Kit.corner(16) })
+	Kit.softShadow(banner, 14, 6, 0.5)
 	local bFace = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true, Parent = banner }, {
 		Kit.corner(16),
 		make("UIGradient", { Name = "G", Rotation = 90 }),
 		Kit.outline(3),
 	})
 	Kit.checker(bFace, 14, 0.9, nil, 330, 58)
-	local bTitle = text("", 24, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 4), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
-	local bSub = text("", 13, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 34), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
+	Kit.shine(bFace, 12)
+	local bTitle = Kit.fitText("", 24, C.Text, { Size = UDim2.new(1, -20, 0, 28), Position = UDim2.fromOffset(10, 5), ZIndex = 2, Parent = bFace })
+	local bSub = Kit.fitText("", 13, C.Text, { Size = UDim2.new(1, -20, 0, 16), Position = UDim2.fromOffset(10, 35), ZIndex = 2, Parent = bFace })
 
 	hud = {
 		Root = root, Scale = scale, Depth = depth, Zone = zone, Guard = guard, Seconds = seconds, Fill = fill, AirScale = airScale,
@@ -98,6 +100,7 @@ local function showZoneBanner(z)
 	hud.BannerTitle.Text = string.upper(z.Display)
 	hud.BannerSub.Text = string.format("%dm deep  -  guarded by %d x %s", math.floor(Zones.Depth(z.Top)), #z.Lairs, z.Guardian.Name)
 	hud.BannerGrad.Color = ColorSequence.new(z.Fog:Lerp(Color3.new(1, 1, 1), 0.15), z.FogDeep)
+	Kit.hue(hud.BannerGrad.Parent)
 	hud.Banner.Position = UDim2.new(0.5, 0, 0, -200)
 	hud.Banner.Visible = true
 	TweenService:Create(hud.Banner, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Position = UDim2.new(0.5, 0, 0, 104) }):Play()

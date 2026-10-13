@@ -10,6 +10,7 @@ local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CreatureModels = require(Shared.CreatureModels)
 local FishData = require(Shared.FishData)
+local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local Zones = require(Shared.Zones)
 
@@ -25,6 +26,7 @@ folder.Parent = workspace
 
 local guardians = {} -- [zoneIndex] = { Zone, Spec, Rig, Buffer, Phase, Pos, Dir, State, Target, ... }
 local hud = {}
+local closeCallBonus = nil
 local INTERP_DELAY = 0.12
 local SWIM = { Sleep = 0.35, Wake = 1.5, Chase = 2, Return = 1 }
 
@@ -186,20 +188,25 @@ local function buildHud()
 	-- full-screen flash (bites)
 	local flash = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 30, 30), BackgroundTransparency = 1, BorderSizePixel = 0, Parent = gui })
 	-- danger meter
-	local meter = make("Frame", { Size = UDim2.fromOffset(280, 36), Position = UDim2.new(0.5, 0, 0, 104), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = UI.GetGui() })
+	-- danger meter: one pill with the hunter's icon, name, distance and a closing-in bar inside it
+	local meter = make("Frame", { Size = UDim2.fromOffset(300, 44), Position = UDim2.new(0.5, 0, 0, 104), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = UI.GetGui() }, {
+		Kit.corner(14),
+		Kit.gradient(Color3.fromRGB(150, 40, 60), Color3.fromRGB(80, 18, 40)),
+		Kit.outline(2.5),
+	})
 	local meterScale = make("UIScale", { Parent = meter })
-	local face = make("Frame", { Size = UDim2.new(1, 0, 0, 24), Position = UDim2.fromOffset(0, 16), BackgroundColor3 = C.Ink, Parent = meter }, { Kit.round(), Kit.outline(3) })
+	Kit.icon("shark", 30, Color3.fromRGB(255, 150, 140), { Position = UDim2.new(0, 7, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = meter })
+	local label = Kit.fitText("", 14, C.Text, { Size = UDim2.new(1, -110, 0, 16), Position = UDim2.fromOffset(44, 5), TextXAlignment = Enum.TextXAlignment.Left, Parent = meter })
+	local dist = Kit.fitText("", 14, Color3.fromRGB(255, 220, 120), { Size = UDim2.fromOffset(56, 16), Position = UDim2.new(1, -10, 0, 5), AnchorPoint = Vector2.new(1, 0), TextXAlignment = Enum.TextXAlignment.Right, Parent = meter })
+	local face = make("Frame", { Size = UDim2.new(1, -56, 0, 12), Position = UDim2.fromOffset(44, 25), BackgroundColor3 = Color3.fromRGB(40, 10, 24), Parent = meter }, { Kit.round() })
 	local fill = make("Frame", { Size = UDim2.fromScale(0.3, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = face }, {
 		Kit.round(),
 		Kit.gradient(Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 60, 50), 0),
 	})
-	Kit.icon("shark", 40, Color3.fromRGB(255, 110, 100), { Position = UDim2.new(0, -26, 0, 6), Parent = meter })
-	local label = text("REEF SHARK IS HUNTING YOU", 17, Kit.Font.Title, C.Text, { Position = UDim2.new(0.5, 0, 0, -6), AnchorPoint = Vector2.new(0.5, 0), Parent = meter })
-	local dist = text("", 15, Kit.Font.Title, C.Text, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = face })
 	-- off-screen arrow
 	local arrow = make("Frame", { Size = UDim2.fromOffset(56, 56), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Visible = false, Parent = gui })
-	local arrowHead = make("Frame", { Size = UDim2.fromOffset(30, 30), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BackgroundColor3 = Color3.fromRGB(255, 70, 60), Parent = arrow }, {
-		Kit.corner(5), Kit.outline(3),
+	local arrowHead = make("Frame", { Size = UDim2.fromOffset(30, 30), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BackgroundColor3 = Color3.new(1, 1, 1), Parent = arrow }, {
+		Kit.corner(6), Kit.gradient(Color3.fromRGB(255, 110, 90), Color3.fromRGB(210, 40, 50)), Kit.outline(2.5),
 	})
 	Kit.icon("shark", 34, Color3.new(1, 1, 1), { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Parent = arrow })
 	hud = { Gui = gui, Edges = edges, Flash = flash, Meter = meter, MeterScale = meterScale, Fill = fill, Label = label, Dist = dist, Arrow = arrow, ArrowHead = arrowHead }
@@ -318,7 +325,7 @@ local function step(dt: number)
 		local danger = math.clamp(1 - (hunterDist - hunter.Spec.Bite) / 70, 0, 1)
 		hud.Meter.Visible = true
 		hud.Fill.Size = UDim2.fromScale(math.max(danger, 0.04), 1)
-		hud.Label.Text = string.upper(hunter.Spec.Name) .. " IS HUNTING YOU!"
+		hud.Label.Text = string.upper(hunter.Spec.Name) .. " IS HUNTING YOU"
 		hud.Dist.Text = string.format("%d m", math.floor(hunterDist * Zones.MetersPerStud))
 		hud.MeterScale.Scale = 1 + danger * 0.12 * (0.5 + 0.5 * math.sin(os.clock() * (6 + danger * 10)))
 		setVignette(0.15 + danger * 0.55)
@@ -404,9 +411,17 @@ local function onChase(kind, info)
 				UI.Notify(string.format("The %s woke up and is hunting %s!", info.Guardian, if who then who.DisplayName else "someone"), "error")
 			end
 		end
+	elseif kind == "CloseCall" then
+		closeCallBonus = info.Bonus
 	elseif kind == "Escaped" then
 		if info.Player == me then
-			UI.Slam("ESCAPED!", Color3.fromRGB(110, 230, 90), nil)
+			if closeCallBonus then
+				UI.Slam("CLOSE CALL!", Color3.fromRGB(255, 210, 60), "+" .. Format.Number(closeCallBonus) .. " bonus coins")
+				closeCallBonus = nil
+				confetti(110)
+			else
+				UI.Slam("ESCAPED!", Color3.fromRGB(110, 230, 90), nil)
+			end
 			confetti(70)
 			if Audio then
 				Audio.Play("Escape")
@@ -423,6 +438,7 @@ local function onChase(kind, info)
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 			if root and typeof(info.Push) == "Vector3" then
 				root.AssemblyLinearVelocity = info.Push
+				Dive.Knock(info.Push)
 			end
 		end
 		local victim = Players:GetPlayerByUserId(info.Player)

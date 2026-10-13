@@ -182,7 +182,18 @@ end
 -- Fires a spear. mine = this player's own shot (does hit detection and tells the server).
 -- rayStart: where hit testing begins on the first frame (the camera for your own first-person
 -- shots, so a fish between your face and the muzzle still gets hit).
-local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muzzle: Attachment?, rayStart: Vector3?)
+local function targetById(id)
+	for _, target in Renderer.GetTargets() do
+		if target.Id == id then
+			return target
+		end
+	end
+	return nil
+end
+
+-- homingId: the creature that was under the crosshair; the spear curves gently onto it, so a
+-- shot that looked on target lands.
+local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muzzle: Attachment?, rayStart: Vector3?, homingId)
 	local pieces, tail, trail = buildSpear(gunInfo)
 	if muzzle then
 		local line = Instance.new("Beam")
@@ -209,6 +220,17 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 	conn = RunService.RenderStepped:Connect(function(dt)
 		dt = math.min(dt, 0.1)
 		if state == "flying" then
+			if homingId then
+				local target = targetById(homingId)
+				if target then
+					local want = (target.Head + target.Tail) / 2 - pos
+					if want.Magnitude > 0.5 and want.Unit:Dot(dir) > 0.5 then
+						dir = dir:Lerp(want.Unit, math.min(1, dt * 9)).Unit
+					end
+				else
+					homingId = nil
+				end
+			end
 			local speed = if pos.Y < WATER then Config.SpearSpeedWater else Config.SpearSpeed
 			local stepLen = math.min(speed * dt, range - traveled)
 			local nextPos = pos + dir * stepLen
@@ -608,7 +630,7 @@ local function buildReticle()
 	})
 	local pipList = {}
 	for i = 1, 6 do
-		pipList[i] = make("Frame", { Size = UDim2.fromOffset(10, 10), BackgroundColor3 = C.Danger, LayoutOrder = i, Parent = pips }, { Kit.round(), Kit.outline(1.5) })
+		pipList[i] = make("Frame", { Size = UDim2.fromOffset(10, 10), BackgroundColor3 = C.Danger, LayoutOrder = i, Parent = pips }, { Kit.round() })
 	end
 	local blocked = make("Frame", { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Visible = false, Parent = root })
 	Kit.icon("depth", 40, C.Gold, { Rotation = 180, Parent = blocked })
@@ -649,7 +671,7 @@ local function updateAim()
 	local bestDist = wallDist
 	for _, target in Renderer.GetTargets() do
 		local d, s = FishPath.SegmentDistance(ray.Origin, ray.Origin + ray.Direction * far, target.Head, target.Tail)
-		local slack = 0.8 + s * far * 0.012 -- a little more forgiving further away
+		local slack = 1.1 + s * far * 0.022 -- forgiving, more so further away (the spear homes in on it)
 		if d <= target.Radius + slack and s * far < bestDist then
 			aimFish, bestDist = target, s * far
 		end
@@ -752,7 +774,11 @@ local function onRender(dt: number)
 		reticle.Stroke.Color = rarity.Color:Lerp(Color3.new(1, 1, 1), 0.2)
 		reticle.Info.Visible = true
 		reticle.InfoName.Text = FishData.FullName(e.SpeciesId, e.Size, e.Mut)
-		reticle.InfoGrad.Color = ColorSequence.new(rarity.Color:Lerp(Color3.new(1, 1, 1), 0.1), rarity.Color:Lerp(Color3.new(0, 0, 0), 0.25))
+		if reticle.InfoRarity ~= rarity then
+			reticle.InfoRarity = rarity
+			reticle.InfoGrad.Color = ColorSequence.new(rarity.Color:Lerp(Color3.new(1, 1, 1), 0.1), rarity.Color:Lerp(Color3.new(0, 0, 0), 0.25))
+			Kit.hue(reticle.Info)
+		end
 		for i, pip in reticle.Pips do
 			pip.Visible = i <= (e.MaxHP or 1)
 			pip.BackgroundColor3 = if i <= (e.HP or 1) then C.Danger else C.Ink
@@ -874,7 +900,7 @@ local function fire()
 	setThirdPersonSpear(false)
 	setVmSpear(false)
 	Remotes.Shoot:FireServer(origin, dir)
-	launch(origin, dir, gun, true, muzzle, if Dive.FirstPerson then camera.CFrame.Position else nil)
+	launch(origin, dir, gun, true, muzzle, if Dive.FirstPerson then camera.CFrame.Position else nil, aimFish and aimFish.Id)
 	if Audio then
 		Audio.Play("Fire")
 	end
@@ -945,6 +971,86 @@ function SpearController.HasGun(): boolean
 	return gunTool ~= nil
 end
 
+-- Hotbar: one styled slot for the speargun (instead of Roblox's grey backpack bar).
+-- Click it, or press 1, to hold or put away the speargun.
+local hotbar
+local function findGunTool(): (Tool?, boolean)
+	local char = player.Character
+	local held = char and char:FindFirstChildOfClass("Tool")
+	if held and held:GetAttribute("GunId") then
+		return held, true
+	end
+	local backpack = player:FindFirstChild("Backpack")
+	local stored = backpack and backpack:FindFirstChildOfClass("Tool")
+	if stored and stored:GetAttribute("GunId") then
+		return stored, false
+	end
+	return nil, false
+end
+
+function SpearController.ToggleGun()
+	local char = player.Character
+	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	local tool, held = findGunTool()
+	if held then
+		humanoid:UnequipTools()
+	elseif tool then
+		humanoid:EquipTool(tool)
+	end
+end
+
+local function buildHotbar()
+	local make = Kit.make
+	local holder, face = Kit.button("", "navy", { Size = UDim2.fromOffset(58, 58), Position = UDim2.new(0.5, 0, 1, -12), AnchorPoint = Vector2.new(0.5, 1), Parent = UI.GetGui() })
+	holder.Name = "Hotbar"
+	holder.Visible = false
+	local art = make("Frame", { Name = "Art", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 3, Parent = face })
+	local key = make("Frame", { Size = UDim2.fromOffset(16, 16), Position = UDim2.fromOffset(4, 4), BackgroundColor3 = Kit.deep(Kit.Swatch.navy[3], 0.35), BackgroundTransparency = 0.15, ZIndex = 4, Parent = face }, { Kit.corner(5) })
+	Kit.text(if UserInputService.TouchEnabled then "" else "1", 11, Kit.Font.Title, Kit.Color.Text, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 5, Outline = false, Parent = key })
+	key.Visible = not UserInputService.TouchEnabled
+	holder.Activated:Connect(SpearController.ToggleGun)
+	hotbar = { Holder = holder, Art = art }
+	UI.Anchors.Hotbar = holder
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and (input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.ButtonY) then
+			SpearController.ToggleGun()
+		end
+	end)
+	-- keep Roblox's own bar hidden (it can take a moment to accept this right after joining)
+	task.spawn(function()
+		for _ = 1, 10 do
+			pcall(function()
+				game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+			end)
+			task.wait(1)
+		end
+	end)
+end
+
+local function updateHotbar()
+	if not hotbar then
+		return
+	end
+	local tool, held = findGunTool()
+	local id = tool and tool:GetAttribute("GunId")
+	hotbar.Holder.Visible = tool ~= nil
+	if id ~= hotbar.GunId then
+		hotbar.GunId = id
+		hotbar.Art:ClearAllChildren()
+		local g = id and GunData.ById[id]
+		if g then
+			UI.GunViewport(hotbar.Art, g, { Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = 3 }, true)
+		end
+	end
+	if held ~= hotbar.Held then
+		hotbar.Held = held
+		Kit.setSwatch(hotbar.Holder, if held then "yellow" else "navy")
+	end
+end
+
 function SpearController.Init(uiController, renderer, dive, audio)
 	UI = uiController
 	Kit = uiController.Kit
@@ -952,6 +1058,13 @@ function SpearController.Init(uiController, renderer, dive, audio)
 	Dive = dive
 	Audio = audio
 	buildReticle()
+	buildHotbar()
+	task.spawn(function()
+		while true do
+			updateHotbar()
+			task.wait(0.15)
+		end
+	end)
 	player.CharacterAdded:Connect(onCharacter)
 	if player.Character then
 		task.spawn(onCharacter, player.Character)

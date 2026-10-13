@@ -112,10 +112,19 @@ local function dropCarry(player: Player)
 	setCarryAttribute(player, nil)
 end
 
-local function bank(player: Player)
+local function bank(player: Player, head: BasePart?)
 	local c = carrying[player]
 	if not c then
 		return
+	end
+	-- how close the nearest hunter was when you got out (close calls pay a bonus)
+	local closest = math.huge
+	if head then
+		for _, g in guardians do
+			if g.Target == player and (g.State == "Chase" or g.State == "Wake") then
+				closest = math.min(closest, (g.Pos - head.Position).Magnitude - g.Spec.Bite)
+			end
+		end
 	end
 	dropCarry(player)
 	local data = DataService.Get(player)
@@ -157,8 +166,14 @@ local function bank(player: Player)
 			Remotes.Notify:FireClient(player, string.format("%s complete! +%d coins", Zones.ByName[zoneName].Display, reward), "success")
 		end
 	end
-	DataService.Changed(player)
 	local value = FishData.GetValue(item.Id, item.Kg, item.Size, item.Mut)
+	local closeCall = closest < Config.CloseCall.Distance
+	if closeCall then
+		local bonus = math.max(1, math.floor(value * Config.CloseCall.Bonus))
+		data.Coins += bonus
+		Remotes.ChaseEvent:FireClient(player, "CloseCall", { Bonus = bonus })
+	end
+	DataService.Changed(player)
 	Remotes.CatchResult:FireClient(player, true, {
 		Id = item.Id, Kg = item.Kg, Size = item.Size, Mut = item.Mut,
 		Rarity = FishData.ById[item.Id].Rarity, Value = value, New = isNew, Record = isRecord,
@@ -200,7 +215,7 @@ local function step(dt: number)
 		if not root or not head then
 			dropCarry(player)
 		elseif not DiverService.IsUnderwater(head.Position) then
-			bank(player)
+			bank(player, head)
 		end
 	end
 

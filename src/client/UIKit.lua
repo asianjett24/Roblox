@@ -1,6 +1,6 @@
--- Design kit, simulator style: chunky white text with ink outlines, 3D buttons with a darker
--- "lip" underneath, checkered pattern overlays, glossy shine, saturated rarity cards and
--- outlined sticker icons drawn from shapes.
+-- Design kit, simulator style: chunky white outlined text, gradient boxes with ONE border in a
+-- darker shade of their own colour (never a black outline plus a second rim), 3D buttons whose
+-- lip is that same border colour, glossy shine, saturated rarity cards and sticker icons.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -13,45 +13,66 @@ local UIKit = {}
 -- Accepts 123456 or "rbxassetid://123456".
 local atlasFailed = false
 local failStatus = "unknown"
-local function atlasId(): number
+local activeId = 0
+local function configId(): number
 	return tonumber(string.match(tostring(Config.UIAtlasId or ""), "%d+")) or 0
+end
+local function atlasId(): number
+	return if activeId > 0 then activeId else configId()
 end
 
 function UIKit.HasAtlas(): boolean
 	return not atlasFailed and atlasId() > 0
 end
 
--- Loads the atlas before the UI is built (waits a few seconds at most). If it can't load
--- (wrong ID, or still being moderated) the UI uses the drawn style instead.
-function UIKit.Preload()
-	if atlasId() <= 0 then
-		return
-	end
+-- Tries to load one image ID; true when Roblox delivered it.
+local function tryLoad(id: number): boolean
 	local ContentProvider = game:GetService("ContentProvider")
-	local done = false
+	local done, good = false, false
 	task.spawn(function()
-		local ok = pcall(function()
-			ContentProvider:PreloadAsync({ "rbxassetid://" .. atlasId() }, function(_, status)
-				if status ~= Enum.AssetFetchStatus.Success then
-					atlasFailed = true
-					failStatus = tostring(status)
-				end
+		pcall(function()
+			ContentProvider:PreloadAsync({ "rbxassetid://" .. id }, function(_, status)
+				good = status == Enum.AssetFetchStatus.Success
+				failStatus = tostring(status)
 			end)
 		end)
-		if not ok then
-			atlasFailed = true
-		end
 		done = true
 	end)
 	local t = 0
-	while not done and t < 5 do
+	while not done and t < 4 do
 		t += task.wait(0.1)
 	end
-	if atlasFailed then
-		warn(string.format("[UI] Couldn't load the UI atlas image %d (%s). Using the emoji style instead. "
-			.. "Publish the place (File > Publish to Roblox), make sure the image you uploaded is assets/ui/ui_atlas.png, "
-			.. "and give Roblox a few minutes to approve it.", atlasId(), failStatus))
+	return good
+end
+
+-- Loads the atlas before the UI is built (a few seconds at most). The server turns a Decal ID
+-- into its Image ID (a common mix-up), so that one is tried first. If nothing loads, the UI
+-- uses colour emoji icons instead.
+function UIKit.Preload()
+	local id = configId()
+	if id <= 0 then
+		return
 	end
+	local t = 0
+	while ReplicatedStorage:GetAttribute("UIAtlasImage") == nil and t < 2.5 do
+		t += task.wait(0.1)
+	end
+	local candidates = {}
+	local resolved = tonumber(ReplicatedStorage:GetAttribute("UIAtlasImage")) or 0
+	if resolved > 0 and resolved ~= id then
+		table.insert(candidates, resolved)
+	end
+	table.insert(candidates, id)
+	for _, candidate in candidates do
+		if tryLoad(candidate) then
+			activeId = candidate
+			return
+		end
+	end
+	atlasFailed = true
+	warn(string.format("[UI] Couldn't load the UI atlas image %d (%s). Using emoji icons instead. "
+		.. "Check that it's the Image ID of assets/ui/ui_atlas.png (Asset Manager > Images > right-click > Copy Asset ID), "
+		.. "that the place is published (File > Publish to Roblox), and give Roblox a few minutes to approve a new upload.", id, failStatus))
 end
 
 -- An ImageLabel showing one sprite from the atlas (nil if the atlas isn't set up).
@@ -135,6 +156,46 @@ UIKit.RarityColors = {
 }
 
 -- Basics -----------------------------------------------------------------------------------
+-- Borders made by UIKit.outline() without a colour take a darker shade of the box they're on.
+local autoStrokes = setmetatable({}, { __mode = "k" })
+
+local function lum(c: Color3): number
+	return c.R * 0.3 + c.G * 0.59 + c.B * 0.11
+end
+
+-- A darker, richer shade of a colour (borders, lips, text outlines on coloured boxes).
+function UIKit.deep(c: Color3, k: number?): Color3
+	return c:Lerp(Color3.fromRGB(10, 14, 38), k or 0.55)
+end
+
+-- Top and bottom colour of a box's fill (its gradient times its background colour).
+function UIKit.fillColors(inst): (Color3, Color3)
+	local base = inst.BackgroundColor3
+	for _, ch in inst:GetChildren() do
+		if ch:IsA("UIGradient") and ch.Color then
+			local kps = ch.Color.Keypoints
+			local a, b = kps[1].Value, kps[#kps].Value
+			return Color3.new(a.R * base.R, a.G * base.G, a.B * base.B), Color3.new(b.R * base.R, b.G * base.G, b.B * base.B)
+		end
+	end
+	return base, base
+end
+
+-- Recolours a box's automatic border to a deep shade of the box's own colour.
+function UIKit.hue(inst, stroke)
+	stroke = stroke or inst:FindFirstChildOfClass("UIStroke")
+	if not stroke or not autoStrokes[stroke] or not inst:IsA("GuiObject") then
+		return
+	end
+	local top, bottom = UIKit.fillColors(inst)
+	local dark = if lum(top) < lum(bottom) then top else bottom
+	if inst.BackgroundTransparency >= 0.9 or lum(dark) > 0.85 then
+		stroke.Color = Color3.fromRGB(22, 26, 48)
+	else
+		stroke.Color = UIKit.deep(dark, 0.5)
+	end
+end
+
 function UIKit.make(class, props, children)
 	local inst = Instance.new(class)
 	for k, v in props or {} do
@@ -142,8 +203,15 @@ function UIKit.make(class, props, children)
 			inst[k] = v
 		end
 	end
+	local auto
 	for _, child in children or {} do
 		child.Parent = inst
+		if autoStrokes[child] then
+			auto = child
+		end
+	end
+	if auto then
+		UIKit.hue(inst, auto)
 	end
 	if props and props.Parent then
 		inst.Parent = props.Parent
@@ -158,15 +226,20 @@ end
 function UIKit.round()
 	return make("UICorner", { CornerRadius = UDim.new(1, 0) })
 end
--- Thick ink outline around a frame
+-- One border around a box. Without a colour it takes a deep shade of the box's own colour
+-- (set when the box is made with UIKit.make, or by calling UIKit.hue(box)).
 function UIKit.outline(thickness, color, transparency)
-	return make("UIStroke", {
+	local stroke = make("UIStroke", {
 		Color = color or C.Ink,
-		Thickness = thickness or 3,
+		Thickness = if color then thickness or 3 else math.min(thickness or 3, 3),
 		Transparency = transparency or 0,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		LineJoinMode = Enum.LineJoinMode.Round,
 	})
+	if not color then
+		autoStrokes[stroke] = true
+	end
+	return stroke
 end
 UIKit.stroke = function(color, thickness, transparency)
 	return UIKit.outline(thickness or 1, color or C.Ink, transparency or 0)
@@ -218,6 +291,16 @@ function UIKit.text(text, size, font, color, props)
 	return label
 end
 
+-- Title text that always fits its box: shrinks (down to 8 px) instead of spilling out.
+function UIKit.fitText(text, maxSize, color, props)
+	props = props or {}
+	props.AutomaticSize = Enum.AutomaticSize.None
+	props.TextScaled = true
+	local label = UIKit.text(text, maxSize, UIKit.Font.Title, color, props)
+	make("UITextSizeConstraint", { MaxTextSize = maxSize, MinTextSize = 8, Parent = label })
+	return label
+end
+
 -- Halftone dot overlay (from the atlas) filling a frame, rounded to match it.
 function UIKit.halftone(parent, transparency, cell, radius, color, name)
 	cell = cell or 22
@@ -260,6 +343,10 @@ function UIKit.checker(parent, cell, transparency, color, w, h)
 			r = 999
 		end
 		return UIKit.halftone(parent, math.clamp((transparency or 0.9) - 0.03, 0.6, 0.95), (cell or 18) * 0.75, r, color)
+	end
+	-- without the atlas: no pattern (a grid of squares looked busy); the gradient carries the box
+	if true then
+		return make("Frame", { Name = "Checker", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = parent.ZIndex, Parent = parent })
 	end
 	cell = cell or 18
 	local holder = make("Frame", { Name = "Checker", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = parent.ZIndex, Parent = parent })
@@ -346,14 +433,32 @@ local function playClick()
 	SoundService:PlayLocalSound(clickSound)
 end
 
--- 3D button: a darker lip underneath, a gradient face with checker + shine, outlined title text.
+-- 3D button: a gradient face with one border in a deep shade of its colour, sitting on a lip
+-- of that same shade (so border and lip read as one shape), plus a soft top shine.
 -- Returns holder (position/size this), the clickable face, and the label.
+local function paintButton(holder, sw)
+	local edge = UIKit.deep(sw[3], 0.25)
+	holder.Lip.BackgroundColor3 = edge
+	holder.Lip.UIStroke.Color = edge
+	holder.Face.Fill.Color = ColorSequence.new(sw[1], sw[2])
+	holder.Face.UIStroke.Color = edge
+	local label = holder.Face:FindFirstChild("Label")
+	local ls = label and label:FindFirstChildOfClass("UIStroke")
+	if ls then
+		ls.Color = UIKit.deep(sw[3], 0.5)
+	end
+end
+
 function UIKit.button(text, swatch, props)
 	props = props or {}
 	local sw = UIKit.Swatch[swatch or "green"] or UIKit.Swatch.green
+	local sz = props.Size or UDim2.fromOffset(140, 46)
+	local small = sz.Y.Offset > 0 and sz.Y.Offset < 40
+	local radius = if small then 9 else 12
+	local depth = if small then 3 else 4
 	local holder = make("TextButton", {
 		Name = props.Name or "Button",
-		Size = props.Size or UDim2.fromOffset(140, 46),
+		Size = sz,
 		Position = props.Position,
 		AnchorPoint = props.AnchorPoint,
 		LayoutOrder = props.LayoutOrder,
@@ -362,21 +467,25 @@ function UIKit.button(text, swatch, props)
 		AutoButtonColor = false,
 		Parent = props.Parent,
 	})
-	local lip = make("Frame", { Name = "Lip", Size = UDim2.new(1, 0, 1, 0), Position = UDim2.fromOffset(0, 5), BackgroundColor3 = sw[3], Parent = holder }, {
-		UIKit.corner(12),
-		UIKit.outline(3),
+	make("Frame", { Name = "Lip", Size = UDim2.new(1, 0, 1, 0), Position = UDim2.fromOffset(0, depth), BackgroundColor3 = sw[3], Parent = holder }, {
+		UIKit.corner(radius),
+		make("UIStroke", { Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, LineJoinMode = Enum.LineJoinMode.Round }),
 	})
 	local face = make("Frame", { Name = "Face", Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true, Parent = holder }, {
-		UIKit.corner(12),
+		UIKit.corner(radius),
 		make("UIGradient", { Name = "Fill", Color = ColorSequence.new(sw[1], sw[2]), Rotation = 90 }),
-		UIKit.outline(3),
+		make("UIStroke", { Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, LineJoinMode = Enum.LineJoinMode.Round }),
 	})
-	local sz = props.Size or UDim2.fromOffset(140, 46)
-	UIKit.checker(face, 14, 0.9, nil, if sz.X.Offset > 0 then sz.X.Offset else 220, if sz.Y.Offset > 0 then sz.Y.Offset else 56)
-	UIKit.shine(face, 9)
+	UIKit.checker(face, 14, 0.92, nil, if sz.X.Offset > 0 then sz.X.Offset else 220, if sz.Y.Offset > 0 then sz.Y.Offset else 56)
+	UIKit.shine(face, radius - 3)
 	local label = UIKit.text(text, props.TextSize or 20, UIKit.Font.Title, C.Text, {
-		Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 3, Parent = face,
+		Name = "Label", Size = UDim2.new(1, -8, 1, 0), Position = UDim2.fromOffset(4, 0), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 3, Parent = face,
 	})
+	if text ~= "" then
+		label.TextScaled = true
+		make("UITextSizeConstraint", { MaxTextSize = props.TextSize or 20, MinTextSize = 8, Parent = label })
+	end
+	paintButton(holder, sw)
 	local scale = make("UIScale", { Parent = holder })
 	holder.MouseEnter:Connect(function()
 		UIKit.tween(scale, 0.14, { Scale = 1.05 }, Enum.EasingStyle.Back)
@@ -386,7 +495,7 @@ function UIKit.button(text, swatch, props)
 		UIKit.tween(face, 0.08, { Position = UDim2.fromOffset(0, 0) })
 	end)
 	holder.MouseButton1Down:Connect(function()
-		UIKit.tween(face, 0.06, { Position = UDim2.fromOffset(0, 4) })
+		UIKit.tween(face, 0.06, { Position = UDim2.fromOffset(0, depth - 1) })
 	end)
 	holder.MouseButton1Up:Connect(function()
 		UIKit.tween(face, 0.1, { Position = UDim2.fromOffset(0, 0) })
@@ -397,9 +506,7 @@ function UIKit.button(text, swatch, props)
 end
 
 function UIKit.setSwatch(holder, swatch)
-	local sw = UIKit.Swatch[swatch] or UIKit.Swatch.green
-	holder.Lip.BackgroundColor3 = sw[3]
-	holder.Face.Fill.Color = ColorSequence.new(sw[1], sw[2])
+	paintButton(holder, UIKit.Swatch[swatch] or UIKit.Swatch.green)
 	holder:SetAttribute("Swatch", swatch)
 end
 
@@ -409,7 +516,7 @@ function UIKit.chip(text, color, props)
 	props.Size = props.Size or UDim2.fromOffset(0, 22)
 	props.AutomaticSize = Enum.AutomaticSize.X
 	props.BackgroundColor3 = color
-	local chip = make("Frame", props, { UIKit.round(), UIKit.pad(0, 9), UIKit.outline(2) })
+	local chip = make("Frame", props, { UIKit.round(), UIKit.pad(0, 9), UIKit.outline(1.5) })
 	UIKit.text(text, 13, UIKit.Font.Title, C.Text, { Size = UDim2.fromScale(0, 1), AutomaticSize = Enum.AutomaticSize.X, Parent = chip })
 	return chip
 end
@@ -422,7 +529,7 @@ function UIKit.card(top, bottom, props)
 	local card = make("Frame", props, {
 		UIKit.corner(14),
 		make("UIGradient", { Color = ColorSequence.new(top, bottom), Rotation = 120 }),
-		UIKit.outline(3),
+		UIKit.outline(2.5),
 	})
 	local sz = props.Size or UDim2.fromOffset(300, 140)
 	UIKit.checker(card, 20, 0.92, nil, if sz.X.Offset > 0 then sz.X.Offset else 320, if sz.Y.Offset > 0 then sz.Y.Offset else 180)
@@ -552,7 +659,7 @@ end
 
 -- Old icon names -> atlas sprite names, and each icon's own colour when none is given.
 local SPRITE = {
-	bag = "bag", trident = "shop", book = "book", bubbles = "bubbles", fish = "fish", coin = "coin", gem = "pearl",
+	bag = "bag", trident = "shop", shop = "shop", book = "book", bubbles = "bubbles", fish = "fish", coin = "coin", gem = "pearl",
 	close = "close", plus = "plus", check = "check", alert = "alert", depth = "down", fin = "flippers", star = "crown",
 	shark = "shark", target = "fin",
 }
@@ -572,7 +679,7 @@ UIKit.IconTint = TINT
 -- Without the atlas, picture icons use colour emoji (they look far better than shapes);
 -- simple symbols (coin, plus, close, check, arrows, bubbles) keep the drawn versions.
 local EMOJI = {
-	bag = "🎒", trident = "🔱", shop = "🔱", book = "📖", gem = "💎", pearl = "💎", fish = "🐟", fishes = "🐠",
+	bag = "🎒", trident = "🔱", shop = "🛒", book = "📖", gem = "💎", pearl = "💎", fish = "🐟", fishes = "🐠",
 	shark = "🦈", bite = "🦈", fin = "🏊", flippers = "🏊", star = "👑", crown = "👑", sack = "💰", coins = "💰",
 	chest = "🎁", trophy = "🏆", lock = "🔒", sun = "☀️", coral = "🐚", angler = "🐡", tentacle = "🐙",
 	serpent = "🐉", dragon = "🐉", sparkles = "✨", dash = "💨", sprint = "⚡", help = "❓", alert = "⚠️",

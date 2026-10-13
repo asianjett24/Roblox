@@ -1,11 +1,15 @@
 -- Diving: the camera locks into first person while your head is underwater (third person
 -- on land), Shift / the DASH button gives a burst of speed, divers trail bubbles, and the
 -- camera shakes for the chase. Diving also takes out your speargun for you.
+-- Underwater you swim with smooth acceleration and a short glide, where you look (W goes
+-- where the camera points), Space swims up and Ctrl / C swims down. Near the surface normal
+-- Roblox swimming takes over again so you can climb out.
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -26,6 +30,9 @@ local dashUntil, dashReadyAt = 0, 0
 local dashBase = nil
 local shakeAmp, shakeUntil, shakeSeed = 0, 0, 0
 local listeners = {}
+local swimVel = Vector3.zero
+local swimming = false
+local SWIM_ACCEL, SWIM_GLIDE = 7, 2.6 -- how fast you reach full speed, and how slowly you coast to a stop
 
 local function charParts()
 	local char = player.Character
@@ -72,6 +79,11 @@ function DiveController.Shake(strength: number, duration: number)
 	shakeUntil = math.max(shakeUntil, os.clock() + duration)
 end
 
+-- A shove (a guardian's bite): carried into the swim so it isn't cancelled out.
+function DiveController.Knock(velocity: Vector3)
+	swimVel = velocity
+end
+
 -- Dash ----------------------------------------------------------------------------------------
 local function dash()
 	local humanoid, _, root = charParts()
@@ -88,6 +100,7 @@ local function dash()
 	DiveController.Dashing = true
 	humanoid.WalkSpeed = dashBase * Config.Dash.Multiplier
 	root.AssemblyLinearVelocity += camera.CFrame.LookVector * dashBase * 0.9
+	swimVel += camera.CFrame.LookVector * dashBase * 0.9
 	TweenService:Create(camera, TweenInfo.new(0.15), { FieldOfView = BASE_FOV + 10 }):Play()
 	if Audio then
 		Audio.Play("Dash")
@@ -166,6 +179,88 @@ local function updateBubbles()
 	end
 end
 
+-- Smooth swimming ---------------------------------------------------------------------------------
+local function swimMover(root: BasePart)
+	local lv = root:FindFirstChild("SwimMover")
+	if lv then
+		return lv
+	end
+	local att = root:FindFirstChild("SwimAttachment") or Instance.new("Attachment")
+	att.Name = "SwimAttachment"
+	att.Parent = root
+	lv = Instance.new("LinearVelocity")
+	lv.Name = "SwimMover"
+	lv.Attachment0 = att
+	lv.RelativeTo = Enum.ActuatorRelativeTo.World
+	lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
+	lv.Enabled = false
+	lv.Parent = root
+	return lv
+end
+
+local function stopSwim(root: BasePart?)
+	swimming = false
+	local lv = root and root:FindFirstChild("SwimMover")
+	if lv then
+		lv.Enabled = false
+	end
+end
+
+local function held(...): boolean
+	for _, key in { ... } do
+		if UserInputService:IsKeyDown(key) then
+			return true
+		end
+	end
+	return false
+end
+
+local function swimStep(dt: number, humanoid: Humanoid, head: BasePart, root: BasePart)
+	-- only while fully under (the surface and climbing out use normal physics)
+	local inPit = Zones.InWater(Vector3.new(head.Position.X, Zones.WaterLevel - 1, head.Position.Z))
+	local submerged = inPit and head.Position.Y < Zones.WaterLevel - 1.1
+	if not submerged or humanoid.Sit or humanoid.PlatformStand then
+		if swimming then
+			stopSwim(root)
+		end
+		-- duck dive: Ctrl / C at the surface pushes you under
+		if inPit and not humanoid.Sit and head.Position.Y < Zones.WaterLevel + 1.5 and held(Enum.KeyCode.LeftControl, Enum.KeyCode.C, Enum.KeyCode.ButtonL2) then
+			local v = root.AssemblyLinearVelocity
+			root.AssemblyLinearVelocity = Vector3.new(v.X, math.min(v.Y, -14), v.Z)
+		end
+		return
+	end
+	if not swimming then
+		swimming = true
+		swimVel = root.AssemblyLinearVelocity
+	end
+	-- the move keys / thumbstick, turned to follow the camera's pitch
+	local cf = camera.CFrame
+	local look = cf.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	flat = if flat.Magnitude > 0.01 then flat.Unit else Vector3.new(0, 0, -1)
+	local right = Vector3.new(-flat.Z, 0, flat.X)
+	local move = humanoid.MoveDirection
+	local dir = look * move:Dot(flat) + right * move:Dot(right)
+	if humanoid.Jump or held(Enum.KeyCode.Space, Enum.KeyCode.ButtonA) then
+		dir += Vector3.new(0, 1, 0)
+	end
+	if held(Enum.KeyCode.LeftControl, Enum.KeyCode.C, Enum.KeyCode.ButtonL2) then
+		dir -= Vector3.new(0, 1, 0)
+	end
+	if dir.Magnitude > 1 then
+		dir = dir.Unit
+	end
+	local target = dir * humanoid.WalkSpeed
+	local rate = if target.Magnitude >= swimVel.Magnitude then SWIM_ACCEL else SWIM_GLIDE
+	swimVel = swimVel:Lerp(target, 1 - math.exp(-rate * dt))
+	local lv = swimMover(root)
+	lv.MaxForce = root.AssemblyMass * 600
+	lv.VectorVelocity = swimVel
+	lv.Enabled = true
+end
+
 -- Per frame -------------------------------------------------------------------------------------
 local bubbleTimer = 0
 local function step(dt: number)
@@ -182,9 +277,11 @@ local function step(dt: number)
 		elseif inPit and y < Zones.WaterLevel - 1.6 then
 			setFirstPerson(true)
 		end
+		swimStep(dt, humanoid, head, root)
 	else
 		DiveController.Underwater = false
 		setFirstPerson(false)
+		swimming = false
 	end
 
 	local now = os.clock()
@@ -242,6 +339,8 @@ function DiveController.Init(audio)
 		end
 	end)
 	player.CharacterAdded:Connect(function()
+		swimming = false
+		swimVel = Vector3.zero
 		DiveController.Dashing = false
 		dashBase = nil
 		camera.FieldOfView = BASE_FOV

@@ -223,7 +223,7 @@ function IntroController.Init(ui, audio)
 		camera.CameraType = Enum.CameraType.Custom
 		gui:Destroy()
 		mainGui.Enabled = true
-		setCore(true)
+		setCore(false) -- the game draws its own hotbar
 		finish()
 	end)
 end

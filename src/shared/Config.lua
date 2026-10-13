@@ -43,6 +43,8 @@ Config.Fins = {
 	Speed = { 16, 19, 22, 25, 28 }, -- swim speed
 	Costs = { 600, 2500, 10000, 35000 },
 }
+-- Escaping with a hunter this close (studs, beyond its bite range) pays a bonus on top.
+Config.CloseCall = { Distance = 14, Bonus = 0.25 }
 Config.Dash = { Multiplier = 1.7, Duration = 1.2, Cooldown = 6 } -- Shift underwater
 Config.DrownDamage = 12 -- health per second once you're out of air
 Config.AirRefill = 12 -- seconds of air regained per second at the surface

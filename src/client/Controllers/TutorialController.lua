@@ -72,21 +72,26 @@ local function run()
 	local card = make("Frame", { Size = UDim2.fromOffset(CARD_W, CARD_H), Position = UDim2.new(0.5, 0, 1, -224), AnchorPoint = Vector2.new(0.5, 1), BackgroundTransparency = 1, Parent = screen })
 	local pop = make("UIScale", { Parent = card })
 	Kit.softShadow(card, 18, 10, 0.3)
-	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 7), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.2, Parent = card }, { Kit.corner(20) })
+	local cardTop, cardBottom = Color3.fromRGB(62, 98, 182), Color3.fromRGB(34, 56, 120)
+	local edge = Kit.deep(cardBottom, 0.5)
+	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 7), BackgroundColor3 = edge, Parent = card }, {
+		Kit.corner(20),
+		make("UIStroke", { Color = edge, Thickness = 3 }),
+	})
 	local face = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true, Parent = card }, {
 		Kit.corner(20),
-		make("UIGradient", { Color = ColorSequence.new(Kit.Swatch.navy[1], Kit.Swatch.navy[2]), Rotation = 90 }),
-		Kit.outline(4),
+		make("UIGradient", { Color = ColorSequence.new(cardTop, cardBottom), Rotation = 90 }),
+		Kit.outline(3),
 	})
 	Kit.checker(face, 18, 0.93, nil, CARD_W, CARD_H)
+	Kit.shine(face, 16)
 	local badge = make("Frame", { Size = UDim2.fromOffset(92, 92), Position = UDim2.fromOffset(16, 22), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 2, Parent = face }, {
 		Kit.corner(18),
 		make("UIGradient", { Name = "G", Color = ColorSequence.new(Kit.Swatch.blue[1], Kit.Swatch.blue[2]), Rotation = 90 }),
-		Kit.outline(3),
 	})
 	Kit.shine(badge, 14)
 	local badgeIcon
-	local title = text("", 28, F.Title, C.Gold, { Position = UDim2.fromOffset(124, 12), ZIndex = 3, Parent = face })
+	local title = Kit.fitText("", 28, C.Gold, { Size = UDim2.fromOffset(CARD_W - 250, 34), Position = UDim2.fromOffset(124, 12), TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = face })
 	local body = text("", 19, F.Bold, C.Text, {
 		Size = UDim2.fromOffset(CARD_W - 140, 70), Position = UDim2.fromOffset(124, 52), AutomaticSize = Enum.AutomaticSize.None,
 		TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 3, Parent = face,
@@ -125,13 +130,12 @@ local function run()
 			Button = "LET'S GO!",
 		},
 		{
-			Id = "equip", Icon = "shop", Swatch = "orange",
+			Id = "equip", Icon = "trident", Swatch = "blue",
 			Title = "Grab your speargun",
-			Body = if UserInputService.TouchEnabled then "Tap the speargun at the bottom of the screen." else "Press 1 (or click the speargun at the bottom).",
+			Body = if UserInputService.TouchEnabled then "Tap the speargun at the bottom of the screen." else "Press 1, or click the speargun at the bottom of the screen.",
 			Spot = function()
-				local vp = camera.ViewportSize
-				local inset = GuiService:GetGuiInset()
-				return Vector2.new(vp.X / 2, vp.Y - inset.Y - 42), 46
+				local slot = UI.GetAnchor("Hotbar")
+				return if slot and slot.Visible then slot else nil
 			end,
 			Done = function()
 				return Spear.HasGun()
@@ -250,7 +254,7 @@ local function run()
 	end
 	local dotFrames = {}
 	for i = 1, #STEPS do
-		dotFrames[i] = make("Frame", { Size = UDim2.fromOffset(10, 10), BackgroundColor3 = Color3.fromRGB(120, 140, 190), LayoutOrder = i, ZIndex = 3, Parent = dots }, { Kit.round(), Kit.outline(1.5) })
+		dotFrames[i] = make("Frame", { Size = UDim2.fromOffset(10, 10), BackgroundColor3 = Color3.fromRGB(120, 140, 190), LayoutOrder = i, ZIndex = 3, Parent = dots }, { Kit.round() })
 	end
 
 	local index, current = 0, nil
