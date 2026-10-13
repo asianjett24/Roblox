@@ -12,6 +12,7 @@ local UIKit = {}
 -- The UI texture atlas (assets/ui/ui_atlas.png) once it's uploaded and its ID is in Config.
 -- Accepts 123456 or "rbxassetid://123456".
 local atlasFailed = false
+local failStatus = "unknown"
 local function atlasId(): number
 	return tonumber(string.match(tostring(Config.UIAtlasId or ""), "%d+")) or 0
 end
@@ -33,6 +34,7 @@ function UIKit.Preload()
 			ContentProvider:PreloadAsync({ "rbxassetid://" .. atlasId() }, function(_, status)
 				if status ~= Enum.AssetFetchStatus.Success then
 					atlasFailed = true
+					failStatus = tostring(status)
 				end
 			end)
 		end)
@@ -46,7 +48,9 @@ function UIKit.Preload()
 		t += task.wait(0.1)
 	end
 	if atlasFailed then
-		warn("[UI] Couldn't load the UI atlas image (Config.UIAtlasId). Using the drawn style instead.")
+		warn(string.format("[UI] Couldn't load the UI atlas image %d (%s). Using the emoji style instead. "
+			.. "Publish the place (File > Publish to Roblox), make sure the image you uploaded is assets/ui/ui_atlas.png, "
+			.. "and give Roblox a few minutes to approve it.", atlasId(), failStatus))
 	end
 end
 
@@ -565,6 +569,15 @@ local TINT = {
 	close = rgb(255, 255, 255), down = rgb(120, 210, 255),
 }
 UIKit.IconTint = TINT
+-- Without the atlas, picture icons use colour emoji (they look far better than shapes);
+-- simple symbols (coin, plus, close, check, arrows, bubbles) keep the drawn versions.
+local EMOJI = {
+	bag = "🎒", trident = "🔱", shop = "🔱", book = "📖", gem = "💎", pearl = "💎", fish = "🐟", fishes = "🐠",
+	shark = "🦈", bite = "🦈", fin = "🏊", flippers = "🏊", star = "👑", crown = "👑", sack = "💰", coins = "💰",
+	chest = "🎁", trophy = "🏆", lock = "🔒", sun = "☀️", coral = "🐚", angler = "🐡", tentacle = "🐙",
+	serpent = "🐉", dragon = "🐉", sparkles = "✨", dash = "💨", sprint = "⚡", help = "❓", alert = "⚠️",
+	tag = "🏷️", helmet = "🌊",
+}
 -- Without the atlas, newer icon names are drawn with the closest shape icon.
 local FALLBACK = {
 	crown = "star", coins = "coin", sprint = "fin", sack = "bag", chest = "coin", bite = "shark", pearl = "gem",
@@ -587,6 +600,17 @@ function UIKit.icon(name, size, color, props)
 		if img then
 			return img
 		end
+	end
+	local emoji = EMOJI[name]
+	if emoji then
+		props.Size = UDim2.fromOffset(size, size)
+		props.BackgroundTransparency = 1
+		props.Text = emoji
+		props.TextSize = math.floor(size * 0.86)
+		props.TextScaled = false
+		props.FontFace = UIKit.Font.Bold
+		props.TextColor3 = Color3.new(1, 1, 1)
+		return make("TextLabel", props)
 	end
 	props.Size = UDim2.fromOffset(size, size)
 	props.BackgroundTransparency = 1

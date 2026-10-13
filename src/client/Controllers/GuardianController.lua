@@ -54,13 +54,14 @@ local function nameTag(g)
 	g.Tag = { Gui = bb, Zzz = zzz, Name = name }
 end
 
-local function build(i, zone)
+local function build(i)
 	local g = guardians[i]
+	local zone = g.Zone
 	local rig = CreatureModels.Build(zone.Guardian, {})
 	rig.Model.Name = zone.Guardian.Name
 	-- place it in its lair straight away (models are built around the world origin)
 	local parts, cfs = {}, {}
-	CreatureModels.Pose(rig, CFrame.new(zone.Lair + Vector3.new(0, zone.Guardian.L * 0.15, 0)), 0, 0.3, parts, cfs)
+	CreatureModels.Pose(rig, CFrame.new(g.Lair + Vector3.new(0, zone.Guardian.L * 0.15, 0)), 0, 0.3, parts, cfs)
 	for k, part in parts do
 		part.CFrame = cfs[k]
 	end
@@ -185,7 +186,7 @@ local function buildHud()
 	-- full-screen flash (bites)
 	local flash = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 30, 30), BackgroundTransparency = 1, BorderSizePixel = 0, Parent = gui })
 	-- danger meter
-	local meter = make("Frame", { Size = UDim2.fromOffset(320, 40), Position = UDim2.new(0.5, 0, 0, 132), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = UI.GetGui() })
+	local meter = make("Frame", { Size = UDim2.fromOffset(280, 36), Position = UDim2.new(0.5, 0, 0, 104), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = UI.GetGui() })
 	local meterScale = make("UIScale", { Parent = meter })
 	local face = make("Frame", { Size = UDim2.new(1, 0, 0, 24), Position = UDim2.fromOffset(0, 16), BackgroundColor3 = C.Ink, Parent = meter }, { Kit.round(), Kit.outline(3) })
 	local fill = make("Frame", { Size = UDim2.fromScale(0.3, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = face }, {
@@ -381,8 +382,15 @@ local function onChase(kind, info)
 			UI.Slam("RUN!", Color3.fromRGB(255, 80, 70), "The " .. info.Guardian .. " woke up! Swim up!")
 			Dive.Shake(0.6, 0.6)
 		end
+	elseif kind == "Lunge" then
+		-- a guardian lunges at you: roar, jolt and a red flash
+		if Audio then
+			Audio.Play("Roar", 0.6)
+		end
+		Dive.Shake(0.55, 0.35)
+		flashScreen(Color3.fromRGB(255, 40, 40), 0.22)
 	elseif kind == "Wake" then
-		local g = guardians[info.Zone]
+		local g = guardians[info.Index or 0]
 		if info.Target == me then
 			if Audio then
 				Audio.Play("Roar")
@@ -436,9 +444,14 @@ local function onCatchResult(success, info)
 	end
 end
 
+-- "Sleep" if every guardian in the zone is asleep, otherwise the state of an awake one.
 function GuardianController.StateOf(zoneIndex: number): string
-	local g = guardians[zoneIndex]
-	return g and g.LastState or "Sleep"
+	for _, g in guardians do
+		if g.Zone.Index == zoneIndex and g.LastState ~= "Sleep" then
+			return g.LastState
+		end
+	end
+	return "Sleep"
 end
 
 function GuardianController.Init(ui, dive, audio)
@@ -447,17 +460,20 @@ function GuardianController.Init(ui, dive, audio)
 	Dive = dive
 	Audio = audio
 	buildHud()
-	for i, zone in Zones.List do
-		local home = zone.Lair + Vector3.new(0, zone.Guardian.L * 0.15, 0)
+	for i, info in Zones.Guardians do
+		local zone = info.Zone
+		local home = info.Lair + Vector3.new(0, zone.Guardian.L * 0.15, 0)
+		local inward = Vector3.new(-info.Lair.X, 0, -info.Lair.Z)
 		guardians[i] = {
-			Zone = zone, Spec = zone.Guardian, Buffer = { { T = 0, Pos = home, Dir = Vector3.new(1, 0, 0), State = "Sleep", Target = 0 } },
+			Zone = zone, Lair = info.Lair, Spec = zone.Guardian,
+			Buffer = { { T = 0, Pos = home, Dir = if inward.Magnitude > 0.1 then inward.Unit else Vector3.new(1, 0, 0), State = "Sleep", Target = 0 } },
 			Phase = math.random() * 6, Swim = 0.35, TailRate = 0.5, LastState = "Sleep", Target = 0,
 		}
 	end
 	-- build the big models over a few frames
 	task.spawn(function()
-		for i, zone in Zones.List do
-			build(i, zone)
+		for i in Zones.Guardians do
+			build(i)
 			task.wait()
 		end
 	end)

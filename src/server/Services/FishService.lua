@@ -39,8 +39,9 @@ local function boxFor(zone, species)
 		return zone
 	end
 	local r = Config.LairRadius
-	local lo = Vector3.new(math.max(zone.Min.X, zone.Lair.X - r), zone.Min.Y, math.max(zone.Min.Z, zone.Lair.Z - r))
-	local hi = Vector3.new(math.min(zone.Max.X, zone.Lair.X + r), math.min(zone.Max.Y, zone.Lair.Y + r), math.min(zone.Max.Z, zone.Lair.Z + r))
+	local lair = zone.Lairs[rng:NextInteger(1, #zone.Lairs)]
+	local lo = Vector3.new(math.max(zone.Min.X, lair.X - r), zone.Min.Y, math.max(zone.Min.Z, lair.Z - r))
+	local hi = Vector3.new(math.min(zone.Max.X, lair.X + r), math.min(zone.Max.Y, lair.Y + r), math.min(zone.Max.Z, lair.Z + r))
 	return { Min = lo, Max = hi }
 end
 

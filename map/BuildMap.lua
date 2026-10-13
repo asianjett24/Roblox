@@ -9,7 +9,7 @@
 -- The game also rebuilds an out-of-date map automatically when you press Play.
 -- WARNING: wipes Terrain and replaces the "Map" folder.
 
-local MAP_VERSION = 8
+local MAP_VERSION = 9
 
 local function build()
 	local CollectionService = game:GetService("CollectionService")
@@ -564,23 +564,24 @@ local function build()
 	section("Guardian lairs", function()
 		local rng = Random.new(41)
 		for k, z in Zones.List do
-			local lair = Instance.new("Model")
-			lair.Name = "Lair" .. k
-			lair:SetAttribute("Zone", z.Name)
-			lair.Parent = fLairs
-			local floor = Vector3.new(z.Lair.X, z.Bottom, z.Lair.Z)
-			local r = if k == #Zones.List then 26 else 10
-			for i = 0, 6 do
-				local a = i / 7 * math.pi * 2
-				Poly.Rock(CFrame.new(floor + Vector3.new(math.cos(a) * r, 2, math.sin(a) * r)), Vector3.new(6, rng:NextNumber(3, 6), 6), Poly.Shade(z.Wall, 0.05), rng, { Parent = lair })
-			end
 			local glow = Color3.fromHSV((0.12 + k * 0.12) % 1, 0.6, 1)
-			for i = 0, 5 do
-				local a = i / 6 * math.pi * 2
-				Poly.Cone(CFrame.new(floor + Vector3.new(math.cos(a) * 3, 0, math.sin(a) * 3)), 0.9, rng:NextNumber(2, 4), 4, glow, { Parent = lair, Material = Enum.Material.Neon }, rng)
+			for c, lairPos in z.Lairs do
+				local lair = Instance.new("Model")
+				lair.Name = "Lair" .. k .. "_" .. c
+				lair:SetAttribute("Zone", z.Name)
+				lair.Parent = fLairs
+				local floor = Vector3.new(lairPos.X, z.Bottom, lairPos.Z)
+				for i = 0, 5 do
+					local a = i / 6 * math.pi * 2
+					Poly.Rock(CFrame.new(floor + Vector3.new(math.cos(a) * 9, 2, math.sin(a) * 9)), Vector3.new(6, rng:NextNumber(3, 6), 6), Poly.Shade(z.Wall, 0.05), rng, { Parent = lair })
+				end
+				for i = 0, 3 do
+					local a = i / 4 * math.pi * 2
+					Poly.Cone(CFrame.new(floor + Vector3.new(math.cos(a) * 3, 0, math.sin(a) * 3)), 0.9, rng:NextNumber(2, 4), 4, glow, { Parent = lair, Material = Enum.Material.Neon }, rng)
+				end
+				local marker = mk("LairCenter", Vector3.new(2, 1, 2), CFrame.new(floor + Vector3.new(0, 0.5, 0)), glow, lair, { material = Enum.Material.Neon, deco = true })
+				light(marker, 30, glow, 1.6)
 			end
-			local marker = mk("LairCenter", Vector3.new(2, 1, 2), CFrame.new(floor + Vector3.new(0, 0.5, 0)), glow, lair, { material = Enum.Material.Neon, deco = true })
-			light(marker, 40, glow, 2)
 		end
 	end)
 

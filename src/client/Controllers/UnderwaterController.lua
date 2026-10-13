@@ -44,8 +44,8 @@ end
 
 local function buildHud(gui)
 	local C, F, make, text = Kit.Color, Kit.Font, Kit.make, Kit.text
-	local root = make("Frame", { Size = UDim2.fromOffset(560, 96), Position = UDim2.new(0.5, 0, 1, -104), AnchorPoint = Vector2.new(0.5, 1), BackgroundTransparency = 1, Visible = false, Parent = gui })
-	local scale = make("UIScale", { Parent = root })
+	local root = make("Frame", { Size = UDim2.fromOffset(560, 96), Position = UDim2.new(0.5, 0, 1, -68), AnchorPoint = Vector2.new(0.5, 1), BackgroundTransparency = 1, Visible = false, Parent = gui })
+	local scale = make("UIScale", { Scale = 0.74, Parent = root })
 
 	-- depth + zone (left)
 	local _, depthFace = pill(root, UDim2.fromOffset(150, 84), UDim2.fromOffset(0, 0))
@@ -74,16 +74,16 @@ local function buildHud(gui)
 	local dashLabel = text("SHIFT", 15, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 1, -24), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = dashFace })
 
 	-- zone banner
-	local banner = make("Frame", { Size = UDim2.fromOffset(520, 92), Position = UDim2.new(0.5, 0, 0, -200), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = gui })
-	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 6), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = banner }, { Kit.corner(20) })
+	local banner = make("Frame", { Size = UDim2.fromOffset(330, 58), Position = UDim2.new(0.5, 0, 0, -200), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Visible = false, Parent = gui })
+	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 4), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = banner }, { Kit.corner(16) })
 	local bFace = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true, Parent = banner }, {
-		Kit.corner(20),
+		Kit.corner(16),
 		make("UIGradient", { Name = "G", Rotation = 90 }),
-		Kit.outline(4),
+		Kit.outline(3),
 	})
-	Kit.checker(bFace, 18, 0.9, nil, 520, 92)
-	local bTitle = text("", 36, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 44), Position = UDim2.fromOffset(0, 8), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
-	local bSub = text("", 17, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 22), Position = UDim2.fromOffset(0, 56), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
+	Kit.checker(bFace, 14, 0.9, nil, 330, 58)
+	local bTitle = text("", 24, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 4), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
+	local bSub = text("", 13, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 34), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
 
 	hud = {
 		Root = root, Scale = scale, Depth = depth, Zone = zone, Guard = guard, Seconds = seconds, Fill = fill, AirScale = airScale,
@@ -96,12 +96,12 @@ local function showZoneBanner(z)
 	bannerToken += 1
 	local token = bannerToken
 	hud.BannerTitle.Text = string.upper(z.Display)
-	hud.BannerSub.Text = string.format("%dm  -  Guardian: %s", math.floor(Zones.Depth(z.Top)), z.Guardian.Name)
+	hud.BannerSub.Text = string.format("%dm deep  -  guarded by %d x %s", math.floor(Zones.Depth(z.Top)), #z.Lairs, z.Guardian.Name)
 	hud.BannerGrad.Color = ColorSequence.new(z.Fog:Lerp(Color3.new(1, 1, 1), 0.15), z.FogDeep)
 	hud.Banner.Position = UDim2.new(0.5, 0, 0, -200)
 	hud.Banner.Visible = true
-	TweenService:Create(hud.Banner, TweenInfo.new(0.45, Enum.EasingStyle.Back), { Position = UDim2.new(0.5, 0, 0, 186) }):Play()
-	task.delay(2.6, function()
+	TweenService:Create(hud.Banner, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Position = UDim2.new(0.5, 0, 0, 104) }):Play()
+	task.delay(2.2, function()
 		if token == bannerToken then
 			UnderwaterController.HideBanner()
 		end
@@ -248,11 +248,12 @@ local function step(dt: number)
 	local show = (headUnder or (air and maxAir and air < maxAir - 0.05)) and not UI.IsPanelOpen()
 	if show and not hud.Root.Visible then
 		hud.Root.Visible = true
-		hud.Scale.Scale = 0.6
-		Kit.tween(hud.Scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		hud.Scale.Scale = 0.74 * 0.6
+		Kit.tween(hud.Scale, 0.3, { Scale = 0.74 }, Enum.EasingStyle.Back)
 	elseif not show then
 		hud.Root.Visible = false
 	end
+	UI.HintRaised = hud.Root.Visible
 	if show and head and air and maxAir then
 		hud.Depth.Text = string.format("%dm", math.floor(Zones.Depth(head.Position.Y) + 0.5))
 		local z = Zones.At(head.Position.Y)
@@ -273,7 +274,7 @@ local function step(dt: number)
 		hud.AirLabel.Text = if low then "LOW AIR!" else "AIR"
 		hud.AirLabel.TextColor3 = if low then Kit.Color.Danger else Kit.Color.Text
 		if low and headUnder then
-			hud.AirScale.Scale = 1 + 0.06 * math.sin(os.clock() * 10)
+			hud.AirScale.Scale = 1 + 0.05 * math.sin(os.clock() * 10)
 			lowAirTick -= dt
 			if lowAirTick <= 0 then
 				lowAirTick = 1

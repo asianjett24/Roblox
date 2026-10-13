@@ -1,6 +1,6 @@
 -- Diving: the camera locks into first person while your head is underwater (third person
 -- on land), Shift / the DASH button gives a burst of speed, divers trail bubbles, and the
--- camera gets a little roll while swimming plus shakes for the chase.
+-- camera shakes for the chase. Diving also takes out your speargun for you.
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,7 +25,6 @@ local BASE_FOV = 70
 local dashUntil, dashReadyAt = 0, 0
 local dashBase = nil
 local shakeAmp, shakeUntil, shakeSeed = 0, 0, 0
-local roll = 0
 local listeners = {}
 
 local function charParts()
@@ -201,18 +200,14 @@ local function step(dt: number)
 	end
 end
 
--- After the camera scripts: swim roll + shake
+-- After the camera scripts: camera shake (chase, hits)
 local function cameraFX(dt: number)
-	local humanoid, _, root = charParts()
-	local target = 0
-	if humanoid and DiveController.FirstPerson then
-		local lateral = camera.CFrame.RightVector:Dot(root.AssemblyLinearVelocity)
-		target = math.clamp(-lateral / 30, -1, 1) * math.rad(4)
-	end
-	roll += (target - roll) * math.min(1, dt * 5)
-	local cf = camera.CFrame * CFrame.Angles(0, 0, roll)
 	local now = os.clock()
-	if now < shakeUntil then
+	if now >= shakeUntil then
+		return
+	end
+	local cf = camera.CFrame
+	do
 		shakeSeed += dt * 30
 		local a = shakeAmp * math.clamp((shakeUntil - now) / 0.3, 0, 1)
 		cf *= CFrame.Angles(math.noise(shakeSeed, 0) * a * 0.05, math.noise(0, shakeSeed) * a * 0.05, 0)
@@ -229,6 +224,16 @@ function DiveController.Init(audio)
 	RunService:BindToRenderStep("DiveCameraFX", Enum.RenderPriority.Camera.Value + 2, cameraFX)
 	DiveController.OnChange(function(on)
 		bindDash(on)
+		-- hold the speargun automatically when you dive
+		local char = player.Character
+		local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+		if on and humanoid and not char:FindFirstChildOfClass("Tool") then
+			local backpack = player:FindFirstChild("Backpack")
+			local tool = backpack and backpack:FindFirstChildOfClass("Tool")
+			if tool then
+				humanoid:EquipTool(tool)
+			end
+		end
 		if Audio then
 			Audio.Play(if on then "Dive" else "Surface")
 		end

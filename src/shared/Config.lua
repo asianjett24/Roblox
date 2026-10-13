@@ -13,7 +13,7 @@ Config.InventoryCap = 60
 
 -- Spears
 Config.SpearSpeed = 150 -- studs/second in air
-Config.SpearSpeedWater = 110 -- studs/second underwater
+Config.SpearSpeedWater = 140 -- studs/second underwater
 Config.HitTolerance = 10 -- extra studs the server allows when checking a hit
 
 -- Fish

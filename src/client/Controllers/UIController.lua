@@ -149,20 +149,20 @@ function UIController.Notify(message: string, kind: string?)
 	local swatch = if kind == "error" then "red" elseif kind == "success" then "green" else "blue"
 	local glyph = if kind == "error" then "alert" elseif kind == "success" then "check" else "fish"
 	local sw = UIKit.Swatch[swatch]
-	local toast = make("Frame", { Size = UDim2.fromOffset(0, 50), AutomaticSize = Enum.AutomaticSize.XY, BackgroundColor3 = Color3.new(1, 1, 1), Parent = toastHolder }, {
+	local toast = make("Frame", { Size = UDim2.fromOffset(0, 40), AutomaticSize = Enum.AutomaticSize.XY, BackgroundColor3 = Color3.new(1, 1, 1), Parent = toastHolder }, {
 		UIKit.corner(14),
 		make("UIGradient", { Color = ColorSequence.new(UIKit.Swatch.navy[1], UIKit.Swatch.navy[2]), Rotation = 90 }),
 		UIKit.outline(3),
 		make("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 18) }),
 		UIKit.list(Enum.FillDirection.Horizontal, 10, nil, Enum.VerticalAlignment.Center),
 	})
-	local badge = make("Frame", { Size = UDim2.fromOffset(36, 36), BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = 1, Parent = toast }, {
+	local badge = make("Frame", { Size = UDim2.fromOffset(28, 28), BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = 1, Parent = toast }, {
 		UIKit.corner(10),
 		make("UIGradient", { Color = ColorSequence.new(sw[1], sw[2]), Rotation = 90 }),
 		UIKit.outline(2.5),
 	})
-	icon(glyph, 20, C.Text, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Parent = badge })
-	local label = text(message, 18, F.Title, C.Text, { LayoutOrder = 2, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = toast })
+	icon(glyph, 16, C.Text, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Parent = badge })
+	local label = text(message, 15, F.Title, C.Text, { LayoutOrder = 2, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = toast })
 	label.AutomaticSize = Enum.AutomaticSize.XY
 	make("UISizeConstraint", { MaxSize = Vector2.new(330, 200), Parent = label })
 	local scale = make("UIScale", { Scale = 0.3, Parent = toast })
@@ -183,7 +183,9 @@ function UIController.Notify(message: string, kind: string?)
 	end
 end
 
+UIController.HintRaised = false -- true while the dive HUD is on screen
 function UIController.SetHint(message: string?)
+	hintFrame.Position = UDim2.new(0.5, 0, 1, if UIController.HintRaised then -152 else -82)
 	if message then
 		if hintLabel.Text ~= message then
 			hintLabel.Text = message
@@ -206,13 +208,13 @@ function UIController.Slam(word: string, color: Color3?, sub: string?)
 	if old then
 		old:Destroy()
 	end
-	local label = text(word, 84, F.Title, color or C.Gold, { Size = UDim2.new(1, 0, 0, 96), AutomaticSize = Enum.AutomaticSize.None, Parent = slamHolder })
+	local label = text(word, 64, F.Title, color or C.Gold, { Size = UDim2.new(1, 0, 0, 74), AutomaticSize = Enum.AutomaticSize.None, Parent = slamHolder })
 	local stroke = label:FindFirstChildOfClass("UIStroke")
 	if stroke then
-		stroke.Thickness = 7
+		stroke.Thickness = 6
 	end
 	if sub then
-		text(sub, 26, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, 96), AutomaticSize = Enum.AutomaticSize.None, Parent = slamHolder })
+		text(sub, 21, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 74), AutomaticSize = Enum.AutomaticSize.None, Parent = slamHolder })
 	end
 	local scale = make("UIScale", { Scale = 2.6, Parent = slamHolder })
 	slamHolder.Rotation = -6
@@ -795,11 +797,11 @@ local function buildStore()
 		local blurb = it.Blurb or (if it.Coins then ("+" .. Format.Number(it.Coins) .. " coins") else "")
 		text(blurb, 16, F.Bold, C.Text, { Size = UDim2.fromOffset(210, 50), Position = UDim2.fromOffset(12, 42), AutomaticSize = Enum.AutomaticSize.None, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 3, Parent = card })
 		local owned = isPass and player:GetAttribute(it.Key)
-		local label = if owned then "OWNED" elseif it.Id == 0 then "SOON" else ("R$ " .. it.Price)
-		local b = UIKit.button(label, if owned or it.Id == 0 then "gray" else "green", { Size = UDim2.fromOffset(140, 44), Position = UDim2.new(0, 12, 1, -56), Parent = card })
+		local label = if owned then "OWNED" else ("R$ " .. it.Price)
+		local b = UIKit.button(label, if owned then "gray" else "green", { Size = UDim2.fromOffset(140, 44), Position = UDim2.new(0, 12, 1, -56), Parent = card })
 		b.ZIndex = 3
-		if it.Id == 0 then
-			text("R$ " .. it.Price, 18, F.Title, C.Text, { Position = UDim2.new(0, 164, 1, -46), ZIndex = 3, Parent = card })
+		if it.Id == 0 and not owned then
+			UIKit.chip("COMING SOON", Color3.fromRGB(40, 50, 90), { Position = UDim2.new(0, 162, 1, -44), ZIndex = 3, Parent = card })
 		end
 		b.Activated:Connect(function()
 			if owned then
@@ -944,10 +946,10 @@ local function refreshAll(data)
 end
 
 local function hudPill(width, parent, order)
-	local holder = make("Frame", { Size = UDim2.fromOffset(width, 52), BackgroundTransparency = 1, LayoutOrder = order, Parent = parent })
+	local holder = make("Frame", { Size = UDim2.fromOffset(width, 40), BackgroundTransparency = 1, LayoutOrder = order, Parent = parent })
 	make("UIScale", { Parent = holder })
 	UIKit.softShadow(holder, 12, 8, 0.45)
-	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 5), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = holder }, { UIKit.round() })
+	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 4), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = holder }, { UIKit.round() })
 	local pill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = holder }, {
 		UIKit.round(),
 		make("UIGradient", { Color = ColorSequence.new(UIKit.Swatch.navy[1], UIKit.Swatch.navy[2]), Rotation = 90 }),
@@ -975,42 +977,42 @@ function UIController.Init()
 	fxGui = make("ScreenGui", { Name = "CoinFX", ResetOnSpawn = false, DisplayOrder = 6, Parent = player:WaitForChild("PlayerGui") })
 
 	-- Top bar: coins (+ opens the Pearl Shop) and bag
-	local top = make("Frame", { Size = UDim2.fromOffset(460, 52), Position = UDim2.new(0.5, 0, 0, 10), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = gui }, {
-		UIKit.list(Enum.FillDirection.Horizontal, 12, Enum.HorizontalAlignment.Center),
+	local top = make("Frame", { Size = UDim2.fromOffset(340, 40), Position = UDim2.new(0.5, 0, 0, 8), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = gui }, {
+		UIKit.list(Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Center),
 	})
-	local coinHolder, coinBox = hudPill(230, top, 1)
+	local coinHolder, coinBox = hudPill(180, top, 1)
 	coinPill = coinHolder
-	icon("coin", 42, nil, { Position = UDim2.new(0, -8, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = coinBox })
-	coinsLabel = text("0", 28, F.Title, C.Gold, { Size = UDim2.new(1, -92, 1, 0), Position = UDim2.fromOffset(40, 0), AutomaticSize = Enum.AutomaticSize.None, Parent = coinBox })
+	icon("coin", 34, nil, { Position = UDim2.new(0, -6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = coinBox })
+	coinsLabel = text("0", 22, F.Title, C.Gold, { Size = UDim2.new(1, -72, 1, 0), Position = UDim2.fromOffset(32, 0), AutomaticSize = Enum.AutomaticSize.None, Parent = coinBox })
 	coinValue.Changed:Connect(function(v)
 		coinsLabel.Text = Format.Number(math.floor(v + 0.5))
 	end)
-	local plus, plusFace = UIKit.button("", "green", { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(1, -46, 0.5, -22), Parent = coinBox })
-	icon("plus", 22, C.Text, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 3, Parent = plusFace })
+	local plus, plusFace = UIKit.button("", "green", { Size = UDim2.fromOffset(32, 32), Position = UDim2.new(1, -36, 0.5, -18), Parent = coinBox })
+	icon("plus", 18, C.Text, { Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 3, Parent = plusFace })
 	plus.Activated:Connect(function()
 		setOpen("Store")
 	end)
-	local bagHolder, bagBox = hudPill(160, top, 2)
+	local bagHolder, bagBox = hudPill(132, top, 2)
 	bagPill = bagHolder
-	icon("bag", 40, nil, { Position = UDim2.new(0, -6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = bagBox })
-	bagLabel = text("0/" .. Config.InventoryCap, 24, F.Title, C.Text, { Size = UDim2.new(1, -44, 1, 0), Position = UDim2.fromOffset(38, 0), AutomaticSize = Enum.AutomaticSize.None, Parent = bagBox })
+	icon("bag", 32, nil, { Position = UDim2.new(0, -4, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = bagBox })
+	bagLabel = text("0/" .. Config.InventoryCap, 19, F.Title, C.Text, { Size = UDim2.new(1, -36, 1, 0), Position = UDim2.fromOffset(32, 0), AutomaticSize = Enum.AutomaticSize.None, Parent = bagBox })
 
 	-- toasts stack down the right side so they never cover an open panel
-	toastHolder = make("Frame", { Size = UDim2.fromOffset(420, 300), Position = UDim2.new(1, -16, 0, 84), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 9, Parent = gui }, {
+	toastHolder = make("Frame", { Size = UDim2.fromOffset(380, 300), Position = UDim2.new(1, -14, 0, 60), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 9, Parent = gui }, {
 		UIKit.list(nil, 8, Enum.HorizontalAlignment.Right),
 	})
 	slamHolder = make("Frame", { Size = UDim2.fromOffset(900, 140), Position = UDim2.fromScale(0.5, 0.36), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 9, Parent = gui })
 
 	-- Carry banner
-	carryBanner = make("Frame", { Size = UDim2.fromOffset(0, 48), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 0, 74), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = gui }, {
+	carryBanner = make("Frame", { Size = UDim2.fromOffset(0, 38), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 0, 58), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = gui }, {
 		UIKit.round(),
 		make("UIGradient", { Color = ColorSequence.new(UIKit.Swatch.red[1], UIKit.Swatch.red[2]), Rotation = 90 }),
 		UIKit.outline(3),
 		UIKit.pad(0, 22),
 		UIKit.list(Enum.FillDirection.Horizontal, 10, nil, Enum.VerticalAlignment.Center),
 	})
-	icon("fish", 32, Color3.fromRGB(255, 220, 120), { LayoutOrder = 1, Parent = carryBanner })
-	carryLabel = text("", 21, F.Title, C.Text, { LayoutOrder = 2, Parent = carryBanner })
+	icon("fish", 26, nil, { LayoutOrder = 1, Parent = carryBanner })
+	carryLabel = text("", 17, F.Title, C.Text, { LayoutOrder = 2, Parent = carryBanner })
 	local carryScale = make("UIScale", { Parent = carryBanner })
 	task.spawn(function()
 		local big = false
@@ -1024,7 +1026,7 @@ function UIController.Init()
 	end)
 
 	hintFrame = make("Frame", {
-		Size = UDim2.fromOffset(0, 46), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 1, -206), AnchorPoint = Vector2.new(0.5, 1),
+		Size = UDim2.fromOffset(0, 34), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 1, -82), AnchorPoint = Vector2.new(0.5, 1),
 		BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = gui,
 	}, {
 		UIKit.round(),
@@ -1032,22 +1034,22 @@ function UIController.Init()
 		UIKit.outline(3),
 		UIKit.pad(0, 22),
 	})
-	hintLabel = text("", 20, F.Title, C.Text, { Size = UDim2.fromScale(0, 1), AutomaticSize = Enum.AutomaticSize.X, Parent = hintFrame })
+	hintLabel = text("", 16, F.Title, C.Text, { Size = UDim2.fromScale(0, 1), AutomaticSize = Enum.AutomaticSize.X, Parent = hintFrame })
 
 	-- Big 3D navigation buttons
-	local nav = make("Frame", { Size = UDim2.fromOffset(100, 4 * 108), Position = UDim2.new(0, 22, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Parent = gui }, {
-		UIKit.list(nil, 16, Enum.HorizontalAlignment.Center),
+	local nav = make("Frame", { Size = UDim2.fromOffset(80, 4 * 76), Position = UDim2.new(0, 12, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Parent = gui }, {
+		UIKit.list(nil, 10, Enum.HorizontalAlignment.Center),
 	})
 	buildBag()
 	buildShop()
 	buildIndex()
 	buildStore()
 	for i, n in NAV do
-		local b, face = UIKit.button("", n.Swatch, { Size = UDim2.fromOffset(88, 88), LayoutOrder = i, Parent = nav })
-		icon(n.Icon, 54, n.IconColor, { Position = UDim2.new(0.5, 0, 0, 6), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 3, Parent = face })
-		text(string.upper(n.Name), 17, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.new(0, 0, 1, -24), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 3, Parent = face })
-		local key = make("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.new(1, 6, 0, -8), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = C.Ink, ZIndex = 5, Parent = b }, { UIKit.corner(7) })
-		text(n.Key.Name, 14, F.Title, C.Text, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 6, Outline = false, Parent = key })
+		local b, face = UIKit.button("", n.Swatch, { Size = UDim2.fromOffset(66, 66), LayoutOrder = i, Parent = nav })
+		icon(n.Icon, 38, nil, { Position = UDim2.new(0.5, 0, 0, 5), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 3, Parent = face })
+		text(string.upper(n.Name), 13, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.new(0, 0, 1, -19), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 3, Parent = face })
+		local key = make("Frame", { Size = UDim2.fromOffset(19, 19), Position = UDim2.new(1, 5, 0, -6), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = C.Ink, ZIndex = 5, Parent = b }, { UIKit.corner(6) })
+		text(n.Key.Name, 12, F.Title, C.Text, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 6, Outline = false, Parent = key })
 		-- white arrow pointing at the open panel
 		local selected = make("Frame", { Size = UDim2.fromOffset(16, 16), Position = UDim2.new(1, 12, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = b }, {
 			UIKit.corner(3),

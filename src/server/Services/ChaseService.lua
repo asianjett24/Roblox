@@ -18,7 +18,9 @@ local DiverService = require(script.Parent.DiverService)
 local ChaseService = {}
 
 local carrying: { [Player]: any } = {} -- [player] = { Item, Zone, Since }
-local guardians = {} -- one per zone
+local guardians = {} -- four per zone, one in each corner (same order as Zones.Guardians)
+local AMBUSH = 75 -- other guardians this close to a theft wake up too
+local LUNGE_RANGE, LUNGE_TIME, LUNGE_COOLDOWN, LUNGE_BOOST = 4.5, 0.7, 2.6, 1.5
 
 local function rootOf(player: Player)
 	local char = player.Character
@@ -81,7 +83,12 @@ function ChaseService.StartCarry(player: Player, item, zone, at: Vector3)
 	end
 	carrying[player] = { Item = item, Zone = zone, Since = os.clock(), Repelled = repelled }
 	setCarryAttribute(player, item)
-	local g = guardians[zone.Index]
+	local g, best = nil, math.huge
+	for _, other in guardians do
+		if other.Zone == zone and (other.Pos - at).Magnitude < best then
+			g, best = other, (other.Pos - at).Magnitude
+		end
+	end
 	local fullName = FishData.FullName(item.Id, item.Size, item.Mut)
 	if repelled then
 		Remotes.ChaseEvent:FireClient(player, "Grabbed", { Item = item, Guardian = g.Spec.Name, Repelled = true })
@@ -89,9 +96,14 @@ function ChaseService.StartCarry(player: Player, item, zone, at: Vector3)
 		return
 	end
 	Remotes.ChaseEvent:FireClient(player, "Grabbed", { Item = item, Guardian = g.Spec.Name, Zone = zone.Name })
-	if g.State == "Sleep" or g.State == "Return" then
-		setState(g, "Wake", player)
-		Remotes.ChaseEvent:FireAllClients("Wake", { Zone = zone.Index, Target = player.UserId, Guardian = g.Spec.Name, Fish = fullName })
+	-- the nearest guardian of this zone wakes, plus any other that's close enough to notice
+	for _, other in guardians do
+		if other.Zone == zone and (other == g or (other.Pos - at).Magnitude < AMBUSH) then
+			if other.State == "Sleep" or other.State == "Return" then
+				setState(other, "Wake", player)
+				Remotes.ChaseEvent:FireAllClients("Wake", { Zone = zone.Index, Index = other.Index, Target = player.UserId, Guardian = other.Spec.Name, Fish = fullName })
+			end
+		end
 	end
 end
 
@@ -216,7 +228,15 @@ local function step(dt: number)
 				local desired = aim - g.Pos
 				local dir = if desired.Magnitude > 0.1 then desired.Unit else g.Dir
 				g.Dir = g.Dir:Lerp(dir, math.min(1, dt * Config.Chase.TurnRate)).Unit
-				g.Vel = g.Dir * spec.Speed
+				-- close in, then lunge: a short burst of speed with a cooldown
+				local now = os.clock()
+				if desired.Magnitude < spec.Bite * LUNGE_RANGE and now >= (g.LungeReady or 0) then
+					g.LungeUntil = now + LUNGE_TIME
+					g.LungeReady = now + LUNGE_COOLDOWN
+					Remotes.ChaseEvent:FireClient(target, "Lunge", { Index = g.Index, Guardian = spec.Name })
+				end
+				local boost = if now < (g.LungeUntil or 0) then LUNGE_BOOST else 1
+				g.Vel = g.Dir * spec.Speed * boost
 				g.Pos = clampToWater(g.Pos + g.Vel * dt, spec.L * 0.2)
 				local mouth = g.Pos + g.Dir * spec.L * 0.45
 				if (mouth - root.Position).Magnitude <= spec.Bite or (g.Pos - root.Position).Magnitude <= spec.Bite * 0.8 then
@@ -234,7 +254,7 @@ local function step(dt: number)
 			if next then
 				setState(g, "Chase", next)
 			else
-				local home = g.Zone.Lair + Vector3.new(0, spec.L * 0.15, 0)
+				local home = g.Lair + Vector3.new(0, spec.L * 0.15, 0)
 				local delta = home - g.Pos
 				if delta.Magnitude < 2 then
 					g.Pos = home
@@ -248,8 +268,8 @@ local function step(dt: number)
 				end
 			end
 		else -- Sleep: drift slowly around the lair
-			local t = os.clock() * 0.2 + g.Zone.Index
-			local home = g.Zone.Lair + Vector3.new(math.cos(t) * 3, spec.L * 0.15 + math.sin(t * 1.7), math.sin(t) * 3)
+			local t = os.clock() * 0.2 + g.Index
+			local home = g.Lair + Vector3.new(math.cos(t) * 3, spec.L * 0.15 + math.sin(t * 1.7), math.sin(t) * 3)
 			g.Vel = (home - g.Pos) * 0.5
 			g.Pos += g.Vel * dt
 			if g.Vel.Magnitude > 0.05 then
@@ -268,11 +288,13 @@ local function broadcast()
 end
 
 function ChaseService.Init()
-	for i, zone in Zones.List do
-		local home = zone.Lair + Vector3.new(0, zone.Guardian.L * 0.15, 0)
+	for i, info in Zones.Guardians do
+		local zone = info.Zone
+		local home = info.Lair + Vector3.new(0, zone.Guardian.L * 0.15, 0)
+		local inward = Vector3.new(-info.Lair.X, 0, -info.Lair.Z)
 		guardians[i] = {
-			Zone = zone, Spec = zone.Guardian, Pos = home, Vel = Vector3.zero,
-			Dir = Vector3.new(1, 0, 0), State = "Sleep", StateTime = os.clock(),
+			Index = i, Zone = zone, Lair = info.Lair, Spec = zone.Guardian, Pos = home, Vel = Vector3.zero,
+			Dir = if inward.Magnitude > 0.1 then inward.Unit else Vector3.new(1, 0, 0), State = "Sleep", StateTime = os.clock(),
 		}
 	end
 	Players.PlayerRemoving:Connect(function(player)
