@@ -41,7 +41,10 @@ end
 local function equippedRod(player: Player)
 	local char = player.Character
 	local tool = char and char:FindFirstChildOfClass("Tool")
-	return tool and tool:GetAttribute("RodId") and tool
+	if tool and tool:GetAttribute("RodId") then
+		return tool
+	end
+	return nil
 end
 
 local function clear(player: Player)

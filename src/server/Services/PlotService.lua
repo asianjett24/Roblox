@@ -48,34 +48,95 @@ local function spawnCFrame(plot: Instance): CFrame
 	return (part and part.CFrame or CFrame.new()) + Vector3.new(0, 5, 0)
 end
 
+local SIGN_FONT = Font.fromEnum(Enum.Font.LuckiestGuy)
+
+-- Paints the owner's headshot and name onto the plot's "Sign" board (both faces).
+local function paintSign(part: BasePart, player: Player?, index: number?)
+	for _, old in part:GetChildren() do
+		if old:IsA("SurfaceGui") then
+			old:Destroy()
+		end
+	end
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = face
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 0.4
+		gui.Parent = part
+
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.FontFace = SIGN_FONT
+		nameLabel.TextScaled = true
+		nameLabel.TextColor3 = Color3.fromRGB(255, 236, 190)
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(60, 38, 22)
+		stroke.Thickness = 2.5
+		stroke.Parent = nameLabel
+
+		if player then
+			local photo = Instance.new("ImageLabel")
+			photo.Size = UDim2.fromScale(0.26, 0.8)
+			photo.Position = UDim2.fromScale(0.04, 0.1)
+			photo.BackgroundColor3 = Color3.fromRGB(60, 38, 22)
+			photo.Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", player.UserId)
+			photo.Parent = gui
+			local aspect = Instance.new("UIAspectRatioConstraint")
+			aspect.Parent = photo
+			local round = Instance.new("UICorner")
+			round.CornerRadius = UDim.new(0.5, 0)
+			round.Parent = photo
+			nameLabel.Size = UDim2.fromScale(0.62, 0.7)
+			nameLabel.Position = UDim2.fromScale(0.34, 0.15)
+			nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			nameLabel.Text = player.DisplayName
+		else
+			nameLabel.Size = UDim2.fromScale(0.9, 0.62)
+			nameLabel.Position = UDim2.fromScale(0.05, 0.08)
+			nameLabel.Text = if index then "BASE " .. index else "FREE BASE"
+			local sub = Instance.new("TextLabel")
+			sub.BackgroundTransparency = 1
+			sub.Size = UDim2.fromScale(0.9, 0.26)
+			sub.Position = UDim2.fromScale(0.05, 0.68)
+			sub.FontFace = SIGN_FONT
+			sub.TextScaled = true
+			sub.TextColor3 = Color3.fromRGB(150, 230, 140)
+			sub.Text = "FREE"
+			sub.Parent = gui
+		end
+		nameLabel.Parent = gui
+	end
+end
+
 local function setSign(plot: Instance, player: Player?)
+	local index = plot:GetAttribute("BaseIndex")
+	local board = plot:FindFirstChild("Sign", true)
+	if board and board:IsA("BasePart") then
+		paintSign(board, player, index)
+		return
+	end
+	-- No sign board on this plot: fall back to a floating label.
 	local gui = plot:FindFirstChild("OwnerSign")
 	if not gui then
 		gui = Instance.new("BillboardGui")
 		gui.Name = "OwnerSign"
 		gui.Size = UDim2.fromOffset(240, 56)
-		gui.StudsOffsetWorldSpace = Vector3.new(0, 16, 0)
-		gui.MaxDistance = 250
+		gui.StudsOffsetWorldSpace = Vector3.new(0, 12, 0)
+		gui.MaxDistance = 200
 		local label = Instance.new("TextLabel")
 		label.Name = "Label"
 		label.Size = UDim2.fromScale(1, 1)
 		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.FredokaOne
+		label.FontFace = SIGN_FONT
 		label.TextScaled = true
-		label.TextStrokeTransparency = 0
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.TextStrokeTransparency = 0.2
 		label.Parent = gui
 		gui.Parent = plot
 	end
 	gui.Adornee = mainPart(plot)
-	local index = plot:GetAttribute("BaseIndex")
-	local name = if index then "Base " .. index else "Plot"
-	if player then
-		gui.Label.Text = player.DisplayName .. "'s Base"
-		gui.Label.TextColor3 = Color3.fromRGB(255, 220, 90)
-	else
-		gui.Label.Text = name .. " · Free"
-		gui.Label.TextColor3 = Color3.fromRGB(220, 220, 220)
-	end
+	gui.Label.Text = if player then player.DisplayName .. "'s Base" else (if index then "Base " .. index else "Free Base")
 end
 
 -- Tank --------------------------------------------------------------------

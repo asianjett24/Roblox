@@ -17,22 +17,22 @@ end
 
 -- Value is the price of an average-weight fish.
 FishData.Fish = {
-	{ Id = "Minnow", Rarity = "Common", Zone = "Any", MinKg = 0.1, MaxKg = 0.4, Value = 5 },
-	{ Id = "Sardine", Rarity = "Common", Zone = "Open", MinKg = 0.2, MaxKg = 0.6, Value = 7 },
-	{ Id = "Bluegill", Rarity = "Common", Zone = "Dock", MinKg = 0.2, MaxKg = 0.8, Value = 8 },
-	{ Id = "Perch", Rarity = "Uncommon", Zone = "Any", MinKg = 0.4, MaxKg = 1.5, Value = 18 },
-	{ Id = "Mackerel", Rarity = "Uncommon", Zone = "Open", MinKg = 0.5, MaxKg = 2, Value = 22 },
-	{ Id = "Koi", Rarity = "Uncommon", Zone = "Dock", MinKg = 0.8, MaxKg = 3, Value = 25 },
-	{ Id = "Salmon", Rarity = "Rare", Zone = "Open", MinKg = 2, MaxKg = 8, Value = 60 },
-	{ Id = "Catfish", Rarity = "Rare", Zone = "Dock", MinKg = 2, MaxKg = 12, Value = 65 },
-	{ Id = "Pufferfish", Rarity = "Rare", Zone = "Any", MinKg = 0.5, MaxKg = 2, Value = 70 },
-	{ Id = "Swordfish", Rarity = "Epic", Zone = "Open", MinKg = 30, MaxKg = 120, Value = 220 },
-	{ Id = "Golden Koi", Rarity = "Epic", Zone = "Dock", MinKg = 1, MaxKg = 4, Value = 250 },
-	{ Id = "Anglerfish", Rarity = "Epic", Zone = "Any", MinKg = 3, MaxKg = 20, Value = 200 },
-	{ Id = "Castle Carp", Rarity = "Legendary", Zone = "Dock", MinKg = 10, MaxKg = 40, Value = 900 },
-	{ Id = "Great White", Rarity = "Legendary", Zone = "Open", MinKg = 300, MaxKg = 1100, Value = 1100 },
-	{ Id = "Moon Eel", Rarity = "Mythic", Zone = "Open", MinKg = 5, MaxKg = 25, Value = 5000 },
-	{ Id = "Royal Leviathan", Rarity = "Mythic", Zone = "Dock", MinKg = 200, MaxKg = 900, Value = 6500 },
+	{ Id = "Minnow", Icon = "🐟", Rarity = "Common", Zone = "Any", MinKg = 0.1, MaxKg = 0.4, Value = 5 },
+	{ Id = "Sardine", Icon = "🐟", Rarity = "Common", Zone = "Open", MinKg = 0.2, MaxKg = 0.6, Value = 7 },
+	{ Id = "Bluegill", Icon = "🐟", Rarity = "Common", Zone = "Dock", MinKg = 0.2, MaxKg = 0.8, Value = 8 },
+	{ Id = "Perch", Icon = "🐟", Rarity = "Uncommon", Zone = "Any", MinKg = 0.4, MaxKg = 1.5, Value = 18 },
+	{ Id = "Mackerel", Icon = "🐟", Rarity = "Uncommon", Zone = "Open", MinKg = 0.5, MaxKg = 2, Value = 22 },
+	{ Id = "Koi", Icon = "🐠", Rarity = "Uncommon", Zone = "Dock", MinKg = 0.8, MaxKg = 3, Value = 25 },
+	{ Id = "Salmon", Icon = "🐟", Rarity = "Rare", Zone = "Open", MinKg = 2, MaxKg = 8, Value = 60 },
+	{ Id = "Catfish", Icon = "🐟", Rarity = "Rare", Zone = "Dock", MinKg = 2, MaxKg = 12, Value = 65 },
+	{ Id = "Pufferfish", Icon = "🐡", Rarity = "Rare", Zone = "Any", MinKg = 0.5, MaxKg = 2, Value = 70 },
+	{ Id = "Swordfish", Icon = "🐟", Rarity = "Epic", Zone = "Open", MinKg = 30, MaxKg = 120, Value = 220 },
+	{ Id = "Golden Koi", Icon = "🐠", Rarity = "Epic", Zone = "Dock", MinKg = 1, MaxKg = 4, Value = 250 },
+	{ Id = "Anglerfish", Icon = "🐡", Rarity = "Epic", Zone = "Any", MinKg = 3, MaxKg = 20, Value = 200 },
+	{ Id = "Castle Carp", Icon = "🐠", Rarity = "Legendary", Zone = "Dock", MinKg = 10, MaxKg = 40, Value = 900 },
+	{ Id = "Great White", Icon = "🦈", Rarity = "Legendary", Zone = "Open", MinKg = 300, MaxKg = 1100, Value = 1100 },
+	{ Id = "Moon Eel", Icon = "🐍", Rarity = "Mythic", Zone = "Open", MinKg = 5, MaxKg = 25, Value = 5000 },
+	{ Id = "Royal Leviathan", Icon = "🐉", Rarity = "Mythic", Zone = "Dock", MinKg = 200, MaxKg = 900, Value = 6500 },
 }
 
 FishData.ById = {}

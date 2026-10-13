@@ -33,6 +33,17 @@ Config.SellAnywhere = true -- the Bag's "Sell All" works anywhere
 
 Config.TankMaxFish = 10 -- fish shown swimming in your base tank
 
+-- Fishing rod look. If a model with one of these names is in ServerStorage, ReplicatedStorage
+-- or Workspace, it's used for every rod; otherwise a rod is built from parts.
+Config.Rod = {
+	ModelNames = { "RodModel", "FishingRod", "Root Scene" },
+	Length = 7, -- studs, butt to tip
+	GripAt = 0.14, -- where the hand holds it (fraction of length from the butt)
+	Tilt = 35, -- degrees the rod leans forward in your hand
+	Flip = false, -- set true if the rod is held by the wrong end
+	Spin = 0, -- degrees to turn the rod around its own length (e.g. 180 if the reel faces up)
+}
+
 -- Private dock upgrades (fishing from your own base's dock)
 Config.Dock = {
 	MaxLevel = 5,

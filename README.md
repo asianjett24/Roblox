@@ -13,13 +13,16 @@ A Roblox fishing game on a walled castle island. There are 8 numbered bases arou
 8. Fill out the **Index**: 16 fish across 6 rarities.
 
 ## Files
-- `map/BuildMap.lua`: builds the whole map. Paste it into Studio's Command Bar.
+- `BuildMap.rbxm` / `map/BuildMap.lua`: builds the whole map. Insert it into Workspace, then run `require(workspace.BuildMap)()` in the Command Bar.
 - `CastleFishing.rbxm`: all the game scripts in one drag-in file.
 - `src/`: the same scripts as source code (for Rojo users).
 
+## Your own rod model
+Put an imported rod model in **ServerStorage** and name it `RodModel` (a model called `Root Scene` works too). The game scales it, works out which end is the handle, and uses it for every rod. If it's held wrong, change `Config.Rod` in `src/shared/Config.lua` (`Flip`, `Spin`, `Tilt`, `GripAt`).
+
 ## Tuning
 All balance numbers are in `src/shared`:
-- `Config.lua`: bite timing, bag size, pond upgrade costs and bonuses
+- `Config.lua`: bite timing, bag size, dock upgrade costs and bonuses, rod model settings
 - `FishData.lua`: fish, rarities, weights, prices and zones
 - `RodData.lua`: rods, prices and stats
 
