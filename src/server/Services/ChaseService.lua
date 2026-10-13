@@ -21,7 +21,10 @@ local ChaseService = {}
 local carrying: { [Player]: any } = {} -- [player] = { Item, Zone, Since }
 local guardians = {} -- four per zone, one in each corner (same order as Zones.Guardians)
 local AMBUSH = 75 -- other guardians this close to a theft wake up too
-local LUNGE_RANGE, LUNGE_TIME, LUNGE_COOLDOWN, LUNGE_BOOST = 4.5, 0.7, 2.6, 1.5
+-- Close in, coil for a moment (the hunted player sees it flash), then lunge in a nearly
+-- straight line: a well-timed dash sideways makes it miss.
+local LUNGE_RANGE, LUNGE_TIME, LUNGE_COOLDOWN, LUNGE_BOOST = 4.5, 0.6, 2.6, 1.8
+local COIL_TIME, COIL_SPEED, LUNGE_TURN = 0.45, 0.45, 0.25
 
 local function rootOf(player: Player)
 	local char = player.Character
@@ -72,6 +75,7 @@ local function setState(g, state, target)
 	g.State = state
 	g.Target = target
 	g.StateTime = os.clock()
+	g.LungeAt, g.CoilUntil = nil, nil
 end
 
 function ChaseService.StartCarry(player: Player, item, zone, at: Vector3)
@@ -244,15 +248,24 @@ local function step(dt: number)
 				local aim = root.Position + root.AssemblyLinearVelocity * 0.25
 				local desired = aim - g.Pos
 				local dir = if desired.Magnitude > 0.1 then desired.Unit else g.Dir
-				g.Dir = g.Dir:Lerp(dir, math.min(1, dt * Config.Chase.TurnRate)).Unit
-				-- close in, then lunge: a short burst of speed with a cooldown
 				local now = os.clock()
-				if desired.Magnitude < spec.Bite * LUNGE_RANGE and now >= (g.LungeReady or 0) then
+				local coiling = now < (g.CoilUntil or 0)
+				local lunging = now < (g.LungeUntil or 0)
+				if not coiling and not lunging and not g.LungeAt and desired.Magnitude < spec.Bite * LUNGE_RANGE and now >= (g.LungeReady or 0) then
+					g.CoilUntil = now + COIL_TIME
+					g.LungeAt = g.CoilUntil
+					g.LungeReady = now + COIL_TIME + LUNGE_COOLDOWN
+					coiling = true
+					Remotes.ChaseEvent:FireClient(target, "Windup", { Index = g.Index, Guardian = spec.Name, Time = COIL_TIME })
+				end
+				if g.LungeAt and now >= g.LungeAt then
+					g.LungeAt = nil
 					g.LungeUntil = now + LUNGE_TIME
-					g.LungeReady = now + LUNGE_COOLDOWN
+					lunging = true
 					Remotes.ChaseEvent:FireClient(target, "Lunge", { Index = g.Index, Guardian = spec.Name })
 				end
-				local boost = if now < (g.LungeUntil or 0) then LUNGE_BOOST else 1
+				g.Dir = g.Dir:Lerp(dir, math.min(1, dt * Config.Chase.TurnRate * (if lunging then LUNGE_TURN else 1))).Unit
+				local boost = if coiling then COIL_SPEED elseif lunging then LUNGE_BOOST else 1
 				g.Vel = g.Dir * spec.Speed * boost
 				g.Pos = clampToWater(g.Pos + g.Vel * dt, spec.L * 0.2)
 				local mouth = g.Pos + g.Dir * spec.L * 0.45

@@ -27,6 +27,8 @@ folder.Parent = workspace
 local guardians = {} -- [zoneIndex] = { Zone, Spec, Rig, Buffer, Phase, Pos, Dir, State, Target, ... }
 local hud = {}
 local closeCallBonus = nil
+local coilGlow = nil -- red outline on a guardian that's about to lunge at you
+local windupTips = 0
 local bountyReward = nil
 local INTERP_DELAY = 0.16 -- two snapshots behind (12 per second), so network jitter never runs it dry
 local SWIM = { Sleep = 0.35, Wake = 1.5, Chase = 2, Return = 1 }
@@ -284,6 +286,11 @@ local function step(dt: number)
 				g.Swim += (swim - g.Swim) * math.min(1, dt * 3)
 				g.Phase += dt * (3 + 5 * g.Swim) * g.TailRate
 				local root = CFrame.lookAt(pos, pos + dir)
+				if g.CoilUntil and os.clock() < g.CoilUntil then
+					-- coiling to lunge: pull back and shudder
+					local k = os.clock() * 45
+					root *= CFrame.new(0, 0, g.Spec.L * 0.06) * CFrame.Angles(math.sin(k) * 0.05, math.sin(k * 1.3) * 0.1, 0)
+				end
 				if state == "Wake" then
 					-- roaring: thrash in place
 					local k = os.clock() * 30
@@ -389,6 +396,35 @@ local function onChase(kind, info)
 		else
 			UI.Slam("RUN!", Color3.fromRGB(255, 80, 70), "The " .. info.Guardian .. " woke up! Swim up!")
 			Dive.Shake(0.6, 0.6)
+		end
+	elseif kind == "Windup" then
+		-- it coils before lunging: flash it red so you can dash out of the way
+		local g = guardians[info.Index or 0]
+		if g then
+			g.CoilUntil = os.clock() + (info.Time or 0.45)
+			if g.Rig then
+				coilGlow = coilGlow or Kit.make("Highlight", {
+					Name = "LungeWarning", FillColor = Color3.fromRGB(255, 40, 40), OutlineColor = Color3.fromRGB(255, 230, 120),
+					FillTransparency = 0.55, OutlineTransparency = 0, DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+				})
+				coilGlow.Adornee = g.Rig.Model
+				coilGlow.Parent = g.Rig.Model
+				coilGlow.Enabled = true
+				local token = g.CoilUntil
+				task.delay((info.Time or 0.45) + 0.6, function()
+					if coilGlow and g.CoilUntil == token then
+						coilGlow.Enabled = false
+					end
+				end)
+			end
+		end
+		if Audio then
+			Audio.Play("Heartbeat")
+		end
+		if windupTips < 3 then
+			windupTips += 1
+			UI.Notify(if game:GetService("UserInputService").TouchEnabled then "It's about to lunge! Tap DASH and swerve to dodge it."
+				else "It's about to lunge! Dash (Shift) sideways to dodge it.", "error")
 		end
 	elseif kind == "Lunge" then
 		-- a guardian lunges at you: roar, jolt and a red flash
