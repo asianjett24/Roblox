@@ -2,6 +2,10 @@
 local Config = {}
 
 Config.DataStoreName = "SpearfishingCove_v1"
+
+-- UI textures: upload assets/ui/ui_atlas.png to Roblox (see README) and put its number here,
+-- e.g. Config.UIAtlasId = 123456789. Leave it at 0 to use the built-in drawn style.
+Config.UIAtlasId = 0
 Config.AutosaveInterval = 120
 
 Config.StartingCoins = 0

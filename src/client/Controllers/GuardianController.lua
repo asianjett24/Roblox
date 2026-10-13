@@ -158,15 +158,19 @@ local function buildHud()
 	local make, text = Kit.make, Kit.text
 	local C = Kit.Color
 	local gui = make("ScreenGui", { Name = "ChaseFX", IgnoreGuiInset = true, DisplayOrder = 3, ResetOnSpawn = false, Parent = player:WaitForChild("PlayerGui") })
-	-- red vignette from four soft edges
+	-- red vignette: the atlas texture, or four soft edges without it
 	local vignette = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = gui })
 	local edges = {}
-	for _, spec in {
+	local vimg = Kit.sprite("vignette", { Size = UDim2.fromScale(1, 1), ImageColor3 = Color3.fromRGB(200, 0, 20), ImageTransparency = 1, Parent = vignette })
+	if vimg then
+		table.insert(edges, vimg)
+	end
+	for _, spec in (if vimg then {} else {
 		{ UDim2.new(0.28, 0, 1, 0), UDim2.new(0, 0, 0, 0), 0 },
 		{ UDim2.new(0.28, 0, 1, 0), UDim2.new(0.72, 0, 0, 0), 180 },
 		{ UDim2.new(1, 0, 0.3, 0), UDim2.new(0, 0, 0, 0), 90 },
 		{ UDim2.new(1, 0, 0.3, 0), UDim2.new(0, 0, 0.7, 0), 270 },
-	} do
+	}) do
 		local f = make("Frame", { Size = spec[1], Position = spec[2], BackgroundColor3 = Color3.fromRGB(200, 0, 20), BorderSizePixel = 0, Parent = vignette }, {
 			make("UIGradient", { Transparency = NumberSequence.new(0, 1), Rotation = spec[3] }),
 		})
@@ -196,7 +200,11 @@ end
 
 local function setVignette(a: number)
 	for _, e in hud.Edges do
-		e.BackgroundTransparency = 1 - a
+		if e:IsA("ImageLabel") then
+			e.ImageTransparency = 1 - a
+		else
+			e.BackgroundTransparency = 1 - a
+		end
 	end
 end
 

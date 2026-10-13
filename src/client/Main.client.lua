@@ -11,6 +11,7 @@ local UnderwaterController = require(Controllers:WaitForChild("UnderwaterControl
 local IntroController = require(Controllers:WaitForChild("IntroController"))
 local TutorialController = require(Controllers:WaitForChild("TutorialController"))
 
+require(script.Parent:WaitForChild("UIKit")).Preload()
 UIController.Init()
 WaterController.Init()
 FishRenderer.Init()

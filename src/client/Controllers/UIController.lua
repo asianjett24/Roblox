@@ -317,7 +317,8 @@ local function makePanel(nav, footerH)
 	local scale = make("UIScale", { Parent = root })
 	-- frees the mouse while a panel is open, even in first person underwater
 	make("TextButton", { Name = "Modal", Size = UDim2.fromOffset(1, 1), BackgroundTransparency = 1, Text = "", Modal = true, Parent = root })
-	-- depth: a dark slab under the panel
+	-- depth: a soft shadow and a dark slab under the panel
+	UIKit.softShadow(root, 26, 16, 0.3)
 	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 10), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.25, Parent = root }, { UIKit.corner(22) })
 	local sw = UIKit.Swatch[nav.Swatch]
 	local body = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = root }, {
@@ -352,15 +353,23 @@ local function makePanel(nav, footerH)
 		UIKit.corner(16),
 		UIKit.outline(3),
 	})
-	-- halftone dots in the well for texture
-	local dots = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, Parent = well }, { UIKit.corner(16) })
-	for r = 0, 8 do
-		for c = 0, 30 do
-			local s = 3 + (8 - r) * 0.7
-			make("Frame", {
-				Size = UDim2.fromOffset(s, s), Position = UDim2.fromOffset(c * 25 + (r % 2) * 12, r * 22 + 6), AnchorPoint = Vector2.new(0.5, 0.5),
-				BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.93, BorderSizePixel = 0, Parent = dots,
-			}, { UIKit.round() })
+	-- halftone dots in the well for texture (atlas texture, or little frames without it)
+	local fade = UIKit.sprite("halftone_fade", {
+		Size = UDim2.new(1, 0, 0, 220), Position = UDim2.new(0, 0, 1, 0), AnchorPoint = Vector2.new(0, 1),
+		ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.new(0, 110, 1, 0), ImageTransparency = 0.88, Parent = well,
+	}, nil)
+	if fade then
+		make("UICorner", { CornerRadius = UDim.new(0, 16), Parent = fade })
+	else
+		local dots = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, Parent = well }, { UIKit.corner(16) })
+		for r = 0, 8 do
+			for c = 0, 30 do
+				local s = 3 + (8 - r) * 0.7
+				make("Frame", {
+					Size = UDim2.fromOffset(s, s), Position = UDim2.fromOffset(c * 25 + (r % 2) * 12, r * 22 + 6), AnchorPoint = Vector2.new(0.5, 0.5),
+					BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.93, BorderSizePixel = 0, Parent = dots,
+				}, { UIKit.round() })
+			end
 		end
 	end
 	local bodyScroll = make("ScrollingFrame", {
@@ -387,7 +396,7 @@ local function emptyState(parent, glyph, title, sub)
 end
 
 -- Tabs row (pills). Returns a function that selects a tab by name, and the row.
-local function tabs(parent, names, swatches, onSelect)
+local function tabs(parent, names, swatches, onSelect, icons)
 	local row = make("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundTransparency = 1, Parent = parent }, {
 		UIKit.list(Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Center),
 	})
@@ -399,7 +408,14 @@ local function tabs(parent, names, swatches, onSelect)
 		onSelect(name)
 	end
 	for i, n in names do
-		local b = UIKit.button(n, "gray", { Size = UDim2.fromOffset(math.max(112, #n * 13 + 34), 40), LayoutOrder = i, TextSize = 18, Parent = row })
+		local glyph = icons and icons[n]
+		local width = if glyph then math.max(100, #n * 12 + 30) + 26 else math.max(112, #n * 13 + 34)
+		local b, face, label = UIKit.button(n, "gray", { Size = UDim2.fromOffset(width, 40), LayoutOrder = i, TextSize = 18, Parent = row })
+		if glyph then
+			icon(glyph, 26, nil, { Position = UDim2.new(0, 6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), ZIndex = 4, Parent = face })
+			label.Size = UDim2.new(1, -30, 1, 0)
+			label.Position = UDim2.fromOffset(28, 0)
+		end
 		b.Activated:Connect(function()
 			select(n)
 		end)
@@ -521,7 +537,7 @@ local function buildShop()
 		if UIController.Data then
 			p.Refresh(UIController.Data)
 		end
-	end)
+	end, { SPEARGUNS = "shop", UPGRADES = "flippers" })
 	tabRow.LayoutOrder = 1
 
 	local function gunsTab(data)
@@ -610,8 +626,8 @@ local function buildShop()
 			gunsTab(data)
 			p.Subtitle.Text = "Hit harder, reach further"
 		else
-			upgradeCard(data, "Tank", "TankLevel", Config.Tank, "blue", "bubbles", "AIR", Config.Tank.Air, "s", 1)
-			upgradeCard(data, "Fins", "FinLevel", Config.Fins, "green", "fin", "SPEED", Config.Fins.Speed, "", 2)
+			upgradeCard(data, "Tank", "TankLevel", Config.Tank, "blue", "tank", "AIR", Config.Tank.Air, "s", 1)
+			upgradeCard(data, "Fins", "FinLevel", Config.Fins, "green", "flippers", "SPEED", Config.Fins.Speed, "", 2)
 			p.Subtitle.Text = "Outswim the guardians"
 		end
 	end
@@ -623,13 +639,15 @@ end
 local function buildIndex()
 	local p = makePanel(NAV[3], 64)
 	make("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = p.Body })
-	local zoneNames, zoneSwatch, zoneByLabel = {}, {}, {}
+	local zoneNames, zoneSwatch, zoneByLabel, zoneIcons = {}, {}, {}, {}
+	local glyphs = { "sun", "coral", "angler", "tentacle", "serpent" }
 	local palette = { "blue", "green", "purple", "navy", "pink" }
 	for i, z in Zones.List do
 		local label = string.upper(z.Name)
 		table.insert(zoneNames, label)
 		zoneSwatch[label] = palette[i]
 		zoneByLabel[label] = z
+		zoneIcons[label] = glyphs[i]
 	end
 	local currentZone = Zones.List[1]
 	local cards = grid(p.Body, UDim2.fromOffset(170, 200), 2)
@@ -638,7 +656,7 @@ local function buildIndex()
 		if UIController.Data then
 			p.Refresh(UIController.Data)
 		end
-	end)
+	end, zoneIcons)
 	tabRow.LayoutOrder = 1
 	-- footer: progress for this zone + its reward
 	local track = make("Frame", { Size = UDim2.new(0.58, 0, 0, 26), Position = UDim2.new(0, 0, 0.5, -13), BackgroundColor3 = C.WellLo, Parent = p.Footer }, { UIKit.round(), UIKit.outline(3) })
@@ -790,11 +808,11 @@ local function buildStore()
 		clearChildren(p.Body)
 		local passGrid = section("GAME PASSES", 1)
 		for i, it in Config.Store.Passes do
-			item(passGrid, it, true, i, ({ "star", "coin", "fin", "bag" })[i] or "gem")
+			item(passGrid, it, true, i, ({ "crown", "coins", "sprint", "sack" })[i] or "gem")
 		end
 		local prodGrid = section("COINS & BOOSTS", 3)
 		for i, it in Config.Store.Products do
-			item(prodGrid, it, false, i, if it.Coins then "coin" else "shark")
+			item(prodGrid, it, false, i, if it.Coins then ({ "coin", "coins", "chest" })[i] or "coins" else "bite")
 		end
 		if data and data.Repellent and data.Repellent > 0 then
 			p.Subtitle.Text = "Repellent charges: " .. data.Repellent
@@ -808,14 +826,18 @@ function UIController.ShowCatch(info)
 	local rc = UIKit.RarityColors[rarity.Name]
 	local root = make("Frame", { Size = UDim2.fromOffset(580, 236), Position = UDim2.fromScale(0.5, 0.63), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 8, Parent = gui })
 	local scale = make("UIScale", { Scale = 0.2, Parent = root })
+	UIKit.softShadow(root, 24, 14, 0.3)
 	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 10), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.25, Parent = root }, { UIKit.corner(22) })
 	local card = UIKit.card(rc[1], rc[2], { Size = UDim2.fromOffset(580, 236), Parent = root })
 	-- rotating light rays behind the creature
-	local rays = make("Frame", { Size = UDim2.fromOffset(300, 300), Position = UDim2.fromOffset(130, 118), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 2, Parent = card })
-	for i = 0, 5 do
-		make("Frame", { Size = UDim2.fromOffset(34, 300), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = i * 30, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 2, Parent = rays }, {
-			make("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }), Rotation = 90 }),
-		})
+	local rays = UIKit.sprite("burst", { Size = UDim2.fromOffset(330, 330), Position = UDim2.fromOffset(130, 118), AnchorPoint = Vector2.new(0.5, 0.5), ImageTransparency = 0.45, ZIndex = 2, Parent = card })
+	if not rays then
+		rays = make("Frame", { Size = UDim2.fromOffset(300, 300), Position = UDim2.fromOffset(130, 118), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 2, Parent = card })
+		for i = 0, 5 do
+			make("Frame", { Size = UDim2.fromOffset(34, 300), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = i * 30, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 2, Parent = rays }, {
+				make("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }), Rotation = 90 }),
+			})
+		end
 	end
 	local stroke = card:FindFirstChildOfClass("UIStroke")
 	local shimmer
@@ -910,6 +932,7 @@ end
 local function hudPill(width, parent, order)
 	local holder = make("Frame", { Size = UDim2.fromOffset(width, 52), BackgroundTransparency = 1, LayoutOrder = order, Parent = parent })
 	make("UIScale", { Parent = holder })
+	UIKit.softShadow(holder, 12, 8, 0.45)
 	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 5), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = holder }, { UIKit.round() })
 	local pill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = holder }, {
 		UIKit.round(),
@@ -955,7 +978,7 @@ function UIController.Init()
 	end)
 	local bagHolder, bagBox = hudPill(160, top, 2)
 	bagPill = bagHolder
-	icon("fish", 40, C.Accent, { Position = UDim2.new(0, -6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = bagBox })
+	icon("bag", 40, nil, { Position = UDim2.new(0, -6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = bagBox })
 	bagLabel = text("0/" .. Config.InventoryCap, 24, F.Title, C.Text, { Size = UDim2.new(1, -44, 1, 0), Position = UDim2.fromOffset(38, 0), AutomaticSize = Enum.AutomaticSize.None, Parent = bagBox })
 
 	-- toasts stack down the right side so they never cover an open panel

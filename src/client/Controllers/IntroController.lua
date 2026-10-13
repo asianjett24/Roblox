@@ -62,6 +62,27 @@ function IntroController.Init(ui, audio)
 		make("UIGradient", { Transparency = NumberSequence.new(0.35, 1), Rotation = 90 }),
 	})
 
+	-- Atlas decorations: slow light rays behind the title, rolling waves and rising bubbles
+	local rays = Kit.sprite("burst", { Size = UDim2.fromOffset(1300, 1300), Position = UDim2.new(0.5, 0, 0, 230), AnchorPoint = Vector2.new(0.5, 0.5), ImageTransparency = 0.8, Parent = screen })
+	local waves = {}
+	for _, spec in { { "wave_soft", Color3.fromRGB(70, 170, 235), 0.25, 150, 18 }, { "wave", Color3.fromRGB(25, 95, 180), 0.05, 120, -30 } } do
+		local w = Kit.sprite(spec[1], {
+			Size = UDim2.new(1, 1024, 0, spec[4]), Position = UDim2.new(0, 0, 1, -88), AnchorPoint = Vector2.new(0, 1),
+			ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(512, spec[4]), ImageColor3 = spec[2], ImageTransparency = spec[3], Parent = screen,
+		})
+		if w then
+			table.insert(waves, { Img = w, Speed = spec[5] })
+		end
+	end
+	local bubbles = {}
+	if Kit.HasAtlas() then
+		for i = 1, 16 do
+			local size = math.random(14, 40)
+			local b = Kit.sprite("bubble", { Size = UDim2.fromOffset(size, size), Position = UDim2.fromScale(math.random(), 1 + math.random() * 0.6), ImageTransparency = 0.25, Parent = screen })
+			table.insert(bubbles, { Img = b, X = math.random(), Speed = 0.04 + math.random() * 0.08, Phase = math.random() * 6, Y = math.random() })
+		end
+	end
+
 	-- Title
 	local logo = make("Frame", { Size = UDim2.fromOffset(900, 260), Position = UDim2.new(0.5, 0, 0, -300), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = screen })
 	local line1 = text("SPEARFISHING", 104, F.Title, Color3.new(1, 1, 1), { Size = UDim2.new(1, 0, 0, 116), AutomaticSize = Enum.AutomaticSize.None, Parent = logo })
@@ -95,6 +116,11 @@ function IntroController.Init(ui, audio)
 		chips[i] = sc
 	end
 
+	-- icon credit (game-icons.net, CC BY 3.0)
+	text("Icons: game-icons.net (Lorc, Delapouite & co.), CC BY 3.0", 13, F.Bold, Color3.fromRGB(200, 220, 255), {
+		Position = UDim2.new(1, -12, 1, -8), AnchorPoint = Vector2.new(1, 1), TextTransparency = 0.3, Parent = screen,
+	})
+
 	-- PLAY
 	local play = Kit.button("PLAY", "green", { Size = UDim2.fromOffset(300, 92), Position = UDim2.new(0.5, 0, 1, -150), AnchorPoint = Vector2.new(0.5, 1), TextSize = 52, Parent = screen })
 	local playScale = play:FindFirstChildOfClass("UIScale")
@@ -112,6 +138,20 @@ function IntroController.Init(ui, audio)
 		angle += dt * 0.07
 		local pos = focus + Vector3.new(math.cos(angle) * 250, 95 + math.sin(angle * 0.7) * 12, math.sin(angle) * 250)
 		camera.CFrame = CFrame.lookAt(pos, focus)
+		if rays then
+			rays.Rotation += dt * 5
+		end
+		for _, w in waves do
+			w.Img.Position = UDim2.new(0, -((os.clock() * math.abs(w.Speed)) % 512) * (if w.Speed < 0 then 1 else -1) - (if w.Speed < 0 then 0 else 512), 1, -88)
+		end
+		for _, b in bubbles do
+			b.Y -= dt * b.Speed
+			if b.Y < -0.1 then
+				b.Y = 1.1
+				b.X = math.random()
+			end
+			b.Img.Position = UDim2.fromScale(b.X + math.sin(os.clock() * 1.5 + b.Phase) * 0.01, b.Y)
+		end
 		-- title bob + swimming fish
 		line2.Rotation = -3 + math.sin(os.clock() * 1.6) * 2
 		swimmer.Position = UDim2.new(((os.clock() * 0.09) % 1.3) - 0.15, 0, 0, 118 + math.sin(os.clock() * 3) * 10)

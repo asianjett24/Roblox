@@ -1,9 +1,72 @@
 -- Design kit, simulator style: chunky white text with ink outlines, 3D buttons with a darker
 -- "lip" underneath, checkered pattern overlays, glossy shine, saturated rarity cards and
 -- outlined sticker icons drawn from shapes.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Atlas = require(script.Parent:WaitForChild("UIAtlas"))
+
 local UIKit = {}
+
+-- The UI texture atlas (assets/ui/ui_atlas.png) once it's uploaded and its ID is in Config.
+-- Accepts 123456 or "rbxassetid://123456".
+local atlasFailed = false
+local function atlasId(): number
+	return tonumber(string.match(tostring(Config.UIAtlasId or ""), "%d+")) or 0
+end
+
+function UIKit.HasAtlas(): boolean
+	return not atlasFailed and atlasId() > 0
+end
+
+-- Loads the atlas before the UI is built (waits a few seconds at most). If it can't load
+-- (wrong ID, or still being moderated) the UI uses the drawn style instead.
+function UIKit.Preload()
+	if atlasId() <= 0 then
+		return
+	end
+	local ContentProvider = game:GetService("ContentProvider")
+	local done = false
+	task.spawn(function()
+		local ok = pcall(function()
+			ContentProvider:PreloadAsync({ "rbxassetid://" .. atlasId() }, function(_, status)
+				if status ~= Enum.AssetFetchStatus.Success then
+					atlasFailed = true
+				end
+			end)
+		end)
+		if not ok then
+			atlasFailed = true
+		end
+		done = true
+	end)
+	local t = 0
+	while not done and t < 5 do
+		t += task.wait(0.1)
+	end
+	if atlasFailed then
+		warn("[UI] Couldn't load the UI atlas image (Config.UIAtlasId). Using the drawn style instead.")
+	end
+end
+
+-- An ImageLabel showing one sprite from the atlas (nil if the atlas isn't set up).
+function UIKit.sprite(name: string, props)
+	local r = Atlas.Sprites[name]
+	if not r or not UIKit.HasAtlas() then
+		return nil
+	end
+	props = props or {}
+	props.BackgroundTransparency = 1
+	props.Image = "rbxassetid://" .. atlasId()
+	props.ImageRectOffset = Vector2.new(r[1], r[2])
+	props.ImageRectSize = Vector2.new(r[3], r[4])
+	if r.Slice and not props.ScaleType then
+		props.ScaleType = Enum.ScaleType.Slice
+		props.SliceCenter = Rect.new(r.Slice[1], r.Slice[2], r.Slice[3], r.Slice[4])
+	end
+	return UIKit.make("ImageLabel", props)
+end
 
 UIKit.Font = {
 	Title = Font.fromEnum(Enum.Font.FredokaOne),
@@ -151,8 +214,49 @@ function UIKit.text(text, size, font, color, props)
 	return label
 end
 
+-- Halftone dot overlay (from the atlas) filling a frame, rounded to match it.
+function UIKit.halftone(parent, transparency, cell, radius, color, name)
+	cell = cell or 22
+	local img = UIKit.sprite(name or "halftone", {
+		Name = "Halftone",
+		Size = UDim2.fromScale(1, 1),
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(cell * 8, cell * 8),
+		ImageTransparency = transparency or 0.86,
+		ImageColor3 = color or Color3.new(1, 1, 1),
+		ZIndex = parent.ZIndex,
+		Parent = parent,
+	})
+	if img and radius then
+		UIKit.make("UICorner", { CornerRadius = UDim.new(0, radius), Parent = img })
+	end
+	return img
+end
+
+-- Soft drop shadow behind a frame (atlas) for depth. Parent it to the frame's holder.
+function UIKit.softShadow(parent, spread, offsetY, transparency)
+	spread = spread or 14
+	return UIKit.sprite("shadow", {
+		Name = "SoftShadow",
+		Size = UDim2.new(1, spread * 2, 1, spread * 2),
+		Position = UDim2.new(0, -spread, 0, -spread + (offsetY or 8)),
+		ImageTransparency = transparency or 0.35,
+		ZIndex = 0,
+		Parent = parent,
+	})
+end
+
 -- Checkered overlay (light squares) filling a frame. The frame should clip its children.
+-- With the atlas set up this becomes a halftone dot pattern instead.
 function UIKit.checker(parent, cell, transparency, color, w, h)
+	if UIKit.HasAtlas() then
+		local corner = parent:FindFirstChildOfClass("UICorner")
+		local r = if corner then corner.CornerRadius.Offset else 0
+		if corner and corner.CornerRadius.Scale > 0 then
+			r = 999
+		end
+		return UIKit.halftone(parent, math.clamp((transparency or 0.9) - 0.03, 0.6, 0.95), (cell or 18) * 0.75, r, color)
+	end
 	cell = cell or 18
 	local holder = make("Frame", { Name = "Checker", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = parent.ZIndex, Parent = parent })
 	-- Size of the area to cover: given, or the parent's pixel size, or a modest default
@@ -182,6 +286,18 @@ end
 
 -- Glossy highlight across the top half of a frame.
 function UIKit.shine(parent, radius)
+	local g = UIKit.sprite("gloss", {
+		Name = "Shine",
+		Size = UDim2.new(1, -6, 0.6, 0),
+		Position = UDim2.fromOffset(3, 2),
+		ImageTransparency = 0.25,
+		ZIndex = parent.ZIndex,
+		Parent = parent,
+	})
+	if g then
+		UIKit.make("UICorner", { CornerRadius = UDim.new(0, radius or 10), Parent = g })
+		return g
+	end
 	return make("Frame", {
 		Name = "Shine",
 		Size = UDim2.new(1, -8, 0.45, 0),
@@ -430,12 +546,52 @@ function ICONS.target(f, c, px)
 	shape(f, 9.5, 9.5, 5, 5, c, { round = true })
 end
 
+-- Old icon names -> atlas sprite names, and each icon's own colour when none is given.
+local SPRITE = {
+	bag = "bag", trident = "shop", book = "book", bubbles = "bubbles", fish = "fish", coin = "coin", gem = "pearl",
+	close = "close", plus = "plus", check = "check", alert = "alert", depth = "down", fin = "flippers", star = "crown",
+	shark = "shark", target = "fin",
+}
+local TINT = {
+	bag = rgb(255, 176, 90), shop = rgb(255, 214, 110), book = rgb(255, 120, 120), pearl = rgb(140, 230, 255),
+	coin = rgb(255, 205, 60), coins = rgb(255, 205, 60), gem = rgb(120, 230, 255), fish = rgb(255, 150, 70),
+	fishes = rgb(110, 200, 255), shark = rgb(175, 190, 210), fin = rgb(120, 200, 255), bubbles = rgb(130, 225, 255),
+	flippers = rgb(110, 225, 120), tank = rgb(255, 196, 70), helmet = rgb(240, 180, 90), plus = rgb(255, 255, 255),
+	check = rgb(255, 255, 255), alert = rgb(255, 210, 70), crown = rgb(255, 210, 60), sprint = rgb(120, 210, 255),
+	sack = rgb(215, 165, 105), chest = rgb(235, 170, 80), dash = rgb(180, 240, 255), trophy = rgb(255, 205, 60),
+	lock = rgb(185, 195, 215), sun = rgb(255, 215, 80), coral = rgb(255, 125, 150), angler = rgb(130, 150, 255),
+	tentacle = rgb(235, 95, 115), serpent = rgb(185, 110, 255), dragon = rgb(170, 110, 255), sparkles = rgb(255, 240, 150),
+	help = rgb(255, 255, 255), bite = rgb(255, 120, 110), tag = rgb(120, 230, 160), star = rgb(255, 220, 90),
+	close = rgb(255, 255, 255), down = rgb(120, 210, 255),
+}
+UIKit.IconTint = TINT
+-- Without the atlas, newer icon names are drawn with the closest shape icon.
+local FALLBACK = {
+	crown = "star", coins = "coin", sprint = "fin", sack = "bag", chest = "coin", bite = "shark", pearl = "gem",
+	flippers = "fin", tank = "bubbles", helmet = "depth", down = "depth", trophy = "star", lock = "alert", dash = "fin",
+	fishes = "fish", shop = "trident", tentacle = "shark", serpent = "fish", dragon = "fish", sun = "star", coral = "star",
+	angler = "fish", sparkles = "star", help = "alert", tag = "coin",
+}
+
 function UIKit.icon(name, size, color, props)
 	props = props or {}
+	local spriteName = SPRITE[name] or name
+	if UIKit.HasAtlas() and Atlas.Sprites[spriteName] then
+		-- sprites have some padding around the drawing, so draw them a little bigger
+		props.Size = UDim2.fromOffset(size * 1.25, size * 1.25)
+		if not props.AnchorPoint then
+			props.Position = (props.Position or UDim2.new()) + UDim2.fromOffset(-size * 0.125, -size * 0.125)
+		end
+		props.ImageColor3 = color or TINT[spriteName] or Color3.new(1, 1, 1)
+		local img = UIKit.sprite(spriteName, props)
+		if img then
+			return img
+		end
+	end
 	props.Size = UDim2.fromOffset(size, size)
 	props.BackgroundTransparency = 1
 	local f = make("Frame", props)
-	local draw = ICONS[name]
+	local draw = ICONS[name] or ICONS[FALLBACK[name] or ""]
 	if draw then
 		draw(f, color or C.Text, size / 24)
 	end

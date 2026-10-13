@@ -28,6 +28,16 @@ Every update afterwards: **Fetch/Pull** in GitHub Desktop. Studio picks up the c
 
 Edit code in the files, not inside Studio. Rojo overwrites Studio-side edits to synced scripts.
 
+## UI textures (one-time, about 2 minutes)
+The menus use a texture sheet with real icons and halftone patterns: `assets/ui/ui_atlas.png`. Roblox needs every image uploaded once, so:
+1. In Studio, open **View → Asset Manager**.
+2. Click **Bulk Import** (the button with the up arrow), pick `assets/ui/ui_atlas.png` from your CastleFishing folder, and confirm.
+3. Open the **Images** folder in the Asset Manager, right-click `ui_atlas` and choose **Copy ID to Clipboard**.
+4. Open `src/shared/Config.lua` in a text editor and paste it into the line `Config.UIAtlasId = 0` (for example `Config.UIAtlasId = "rbxassetid://123456789"`). Save. Rojo sends it to Studio.
+
+Until you do this (or if Roblox is still checking the image), the game uses the simpler drawn style, so nothing breaks.
+Icons are from game-icons.net (CC BY 3.0), credited in `assets/ui/CREDITS.md` and on the title screen. To change the sheet, edit and run `assets/ui/build_atlas.py`, then upload the new PNG.
+
 ## Robux shop
 Create your game passes and developer products on the Creator Dashboard, then put their IDs in `Config.Store` in `src/shared/Config.lua` (replace the `Id = 0` entries). Anything with `Id = 0` shows as "Soon" and can't be bought.
 
