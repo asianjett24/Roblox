@@ -182,6 +182,40 @@ end
 -- Fires a spear. mine = this player's own shot (does hit detection and tells the server).
 -- rayStart: where hit testing begins on the first frame (the camera for your own first-person
 -- shots, so a fish between your face and the muzzle still gets hit).
+-- Floating text where your spear lands ("GOT IT!", "HIT! 2 LEFT").
+local function popText(at: Vector3, message: string, color: Color3)
+	local holder = Instance.new("Part")
+	holder.Name = "HitText"
+	holder.Anchored = true
+	holder.CanCollide = false
+	holder.CanQuery = false
+	holder.CanTouch = false
+	holder.Transparency = 1
+	holder.Size = Vector3.new(0.2, 0.2, 0.2)
+	holder.Position = at
+	holder.Parent = workspace
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(220, 44)
+	bb.AlwaysOnTop = true
+	bb.LightInfluence = 0
+	bb.StudsOffset = Vector3.new(0, 1.5, 0)
+	bb.Parent = holder
+	local label = Kit.text(message, 30, Kit.Font.Title, color, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Parent = bb })
+	local scale = Kit.make("UIScale", { Scale = 0.3, Parent = label })
+	Kit.tween(scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	Kit.tween(bb, 0.9, { StudsOffset = Vector3.new(0, 4, 0) })
+	task.delay(0.5, function()
+		Kit.tween(label, 0.4, { TextTransparency = 1 })
+		local st = label:FindFirstChildOfClass("UIStroke")
+		if st then
+			Kit.tween(st, 0.4, { Transparency = 1 })
+		end
+	end)
+	task.delay(1, function()
+		holder:Destroy()
+	end)
+end
+
 local function targetById(id)
 	for _, target in Renderer.GetTargets() do
 		if target.Id == id then
@@ -265,6 +299,12 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 				if mine then
 					Remotes.SpearHit:FireServer(best.Id, workspace:GetServerTimeNow())
 					SpearController.OnHit(best)
+					local left = (best.Entry.HP or 1) - (gunInfo and gunInfo.Damage or 1)
+					if left <= 0 then
+						popText(at, "GOT IT!", Color3.fromRGB(120, 240, 110))
+					else
+						popText(at, "HIT!  " .. left .. " LEFT", Color3.fromRGB(255, 215, 70))
+					end
 				end
 			elseif wall then
 				spearCF = CFrame.lookAt(wall.Position, wall.Position + dir) * CFrame.new(0, 0, -0.4)

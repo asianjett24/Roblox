@@ -9,7 +9,7 @@
 -- The game also rebuilds an out-of-date map automatically when you press Play.
 -- WARNING: wipes Terrain and replaces the "Map" folder.
 
-local MAP_VERSION = 9
+local MAP_VERSION = 10
 
 local function build()
 	local CollectionService = game:GetService("CollectionService")
@@ -971,6 +971,19 @@ local function build()
 		cc.Saturation = 0.18
 		cc.Contrast = 0.08
 		cc.Parent = Lighting
+	end)
+
+	-- Cheaper to draw and simulate: nothing in the map uses touch events, and shadows deep
+	-- underwater can't be seen through the fog.
+	section("Performance", function()
+		for _, p in map:GetDescendants() do
+			if p:IsA("BasePart") and not p:IsA("SpawnLocation") then
+				p.CanTouch = false
+				if p.Position.Y + p.Size.Magnitude / 2 < Zones.WaterLevel - 2 then
+					p.CastShadow = false
+				end
+			end
+		end
 	end)
 
 	if failed == 0 then
