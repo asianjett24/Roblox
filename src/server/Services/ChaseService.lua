@@ -23,8 +23,10 @@ local guardians = {} -- four per zone, one in each corner (same order as Zones.G
 local AMBUSH = 75 -- other guardians this close to a theft wake up too
 -- Close in, coil for a moment (the hunted player sees it flash), then lunge in a nearly
 -- straight line: a well-timed dash sideways makes it miss.
-local LUNGE_RANGE, LUNGE_TIME, LUNGE_COOLDOWN, LUNGE_BOOST = 4.5, 0.6, 2.6, 1.8
+-- A missed lunge leaves it slow for a moment (it overshoots), so dodging buys you distance.
+local LUNGE_RANGE, LUNGE_TIME, LUNGE_COOLDOWN, LUNGE_BOOST = 3, 0.7, 2.6, 2.2
 local COIL_TIME, COIL_SPEED, LUNGE_TURN = 0.45, 0.45, 0.25
+local RECOVER_TIME, RECOVER_SPEED = 0.9, 0.5
 
 local function rootOf(player: Player)
 	local char = player.Character
@@ -75,7 +77,7 @@ local function setState(g, state, target)
 	g.State = state
 	g.Target = target
 	g.StateTime = os.clock()
-	g.LungeAt, g.CoilUntil = nil, nil
+	g.LungeAt, g.CoilUntil, g.RecoverUntil = nil, nil, nil
 end
 
 function ChaseService.StartCarry(player: Player, item, zone, at: Vector3)
@@ -261,11 +263,13 @@ local function step(dt: number)
 				if g.LungeAt and now >= g.LungeAt then
 					g.LungeAt = nil
 					g.LungeUntil = now + LUNGE_TIME
+					g.RecoverUntil = g.LungeUntil + RECOVER_TIME
 					lunging = true
 					Remotes.ChaseEvent:FireClient(target, "Lunge", { Index = g.Index, Guardian = spec.Name })
 				end
 				g.Dir = g.Dir:Lerp(dir, math.min(1, dt * Config.Chase.TurnRate * (if lunging then LUNGE_TURN else 1))).Unit
-				local boost = if coiling then COIL_SPEED elseif lunging then LUNGE_BOOST else 1
+				local recovering = not lunging and now < (g.RecoverUntil or 0)
+				local boost = if coiling then COIL_SPEED elseif lunging then LUNGE_BOOST elseif recovering then RECOVER_SPEED else 1
 				g.Vel = g.Dir * spec.Speed * boost
 				g.Pos = clampToWater(g.Pos + g.Vel * dt, spec.L * 0.2)
 				local mouth = g.Pos + g.Dir * spec.L * 0.45

@@ -31,6 +31,7 @@ local dashBase = nil
 local shakeAmp, shakeUntil, shakeSeed = 0, 0, 0
 local listeners = {}
 local swimVel = Vector3.zero
+local swimDir = Vector3.zero -- the direction you're pressing (dash goes this way)
 local swimming = false
 local SWIM_ACCEL, SWIM_GLIDE = 7, 2.6 -- how fast you reach full speed, and how slowly you coast to a stop
 local fov = { Speed = 0, Dash = 0, Punch = 0 } -- extra field of view: swim speed, dash, kicks (spear fire)
@@ -131,8 +132,10 @@ local function dash()
 	dashBase = humanoid.WalkSpeed
 	DiveController.Dashing = true
 	humanoid.WalkSpeed = dashBase * Config.Dash.Multiplier
-	root.AssemblyLinearVelocity += camera.CFrame.LookVector * dashBase * 0.9
-	swimVel += camera.CFrame.LookVector * dashBase * 0.9
+	-- dash where you're steering (A/D + Shift sidesteps), or straight ahead
+	local dir = if swimDir.Magnitude > 0.2 then swimDir.Unit else camera.CFrame.LookVector
+	root.AssemblyLinearVelocity += dir * dashBase * 0.9
+	swimVel += dir * dashBase * 1.1
 	if Audio then
 		Audio.Play("Dash")
 	end
@@ -265,6 +268,7 @@ local function swimStep(dt: number, humanoid: Humanoid, head: BasePart, root: Ba
 		if swimming then
 			stopSwim(root)
 		end
+		swimDir = Vector3.zero
 		-- duck dive: Ctrl / C at the surface pushes you under
 		if inPit and not humanoid.Sit and head.Position.Y < Zones.WaterLevel + 1.5 and held(Enum.KeyCode.LeftControl, Enum.KeyCode.C, Enum.KeyCode.ButtonL2) then
 			local v = root.AssemblyLinearVelocity
@@ -293,6 +297,7 @@ local function swimStep(dt: number, humanoid: Humanoid, head: BasePart, root: Ba
 	if dir.Magnitude > 1 then
 		dir = dir.Unit
 	end
+	swimDir = dir
 	local target = dir * humanoid.WalkSpeed
 	local rate = if target.Magnitude >= swimVel.Magnitude then SWIM_ACCEL else SWIM_GLIDE
 	swimVel = swimVel:Lerp(target, 1 - math.exp(-rate * dt))

@@ -424,7 +424,7 @@ local function onChase(kind, info)
 		if windupTips < 3 then
 			windupTips += 1
 			UI.Notify(if game:GetService("UserInputService").TouchEnabled then "It's about to lunge! Tap DASH and swerve to dodge it."
-				else "It's about to lunge! Dash (Shift) sideways to dodge it.", "error")
+				else "It's about to lunge! Hold A or D and press Shift to dash out of the way.", "error")
 		end
 	elseif kind == "Lunge" then
 		-- a guardian lunges at you: roar, jolt and a red flash
