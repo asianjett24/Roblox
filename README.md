@@ -31,8 +31,8 @@ Edit code in the files, not inside Studio. Rojo overwrites Studio-side edits to 
 ## UI textures (one-time, about 2 minutes)
 The menus use a texture sheet with real icons and halftone patterns: `assets/ui/ui_atlas.png`. Roblox needs every image uploaded once, so:
 1. In Studio, open **View → Asset Manager**.
-2. Click **Bulk Import** (the button with the up arrow), pick `assets/ui/ui_atlas.png` from your CastleFishing folder, and confirm.
-3. Open the **Images** folder in the Asset Manager, right-click `ui_atlas` and choose **Copy ID to Clipboard**.
+2. Click **Import** (called **Bulk Import** in older Studio versions), pick `assets/ui/ui_atlas.png` from your CastleFishing folder, and confirm.
+3. Find `ui_atlas` under **Images** in the Asset Manager, right-click it and choose **Copy Asset ID** (or **Copy ID to Clipboard**).
 4. Open `src/shared/Config.lua` in a text editor and paste it into the line `Config.UIAtlasId = 0` (for example `Config.UIAtlasId = "rbxassetid://123456789"`). Save. Rojo sends it to Studio.
 
 Until you do this (or if Roblox is still checking the image), the game uses the simpler drawn style, so nothing breaks.

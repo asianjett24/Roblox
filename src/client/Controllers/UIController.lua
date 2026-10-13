@@ -446,6 +446,8 @@ local function fishCard(parent, item, order, withArt)
 	local rc = UIKit.RarityColors[rarity.Name]
 	local card = UIKit.card(rc[1], rc[2], { Size = UDim2.fromOffset(170, 200), LayoutOrder = order, Parent = parent })
 	local mut = item.Mut and FishData.MutationByName[item.Mut]
+	-- soft glow behind the art so the creature pops off the card
+	UIKit.sprite("glow", { Size = UDim2.fromOffset(180, 150), Position = UDim2.new(0.5, 0, 0, 72), AnchorPoint = Vector2.new(0.5, 0.5), ImageTransparency = 0.45, ZIndex = 2, Parent = card })
 	if withArt then
 		UIController.CreatureViewport(card, item.Id, { Static = true, Mutation = item.Mut }, { Size = UDim2.fromOffset(160, 100), Position = UDim2.fromOffset(5, 22), ZIndex = 2 })
 	else
@@ -735,6 +737,9 @@ local function buildIndex()
 					found += 1
 				end
 				local card = UIKit.card(top, bottom, { Size = UDim2.fromOffset(170, 200), LayoutOrder = FishData.RarityIndex[f.Rarity] * 100 + i, Parent = cards })
+				if entry then
+					UIKit.sprite("glow", { Size = UDim2.fromOffset(180, 150), Position = UDim2.new(0.5, 0, 0, 76), AnchorPoint = Vector2.new(0.5, 0.5), ImageTransparency = 0.45, ZIndex = 2, Parent = card })
+				end
 				local vf = UIController.CreatureViewport(card, f.Id, { Static = true }, { Size = UDim2.fromOffset(160, 104), Position = UDim2.fromOffset(5, 24), ZIndex = 2 })
 				if not entry then
 					-- undiscovered: a dark silhouette
