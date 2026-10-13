@@ -15,7 +15,7 @@ A Roblox fishing game on a walled castle island. There are 8 numbered bases arou
 ## Setup (Rojo, recommended)
 One-time:
 1. Clone this repo with GitHub Desktop and switch to this branch.
-2. Double-click **Start Rojo.bat** (Windows) or **Start Rojo.command** (Mac). The first run downloads Rojo and installs its Studio plugin. Keep the window open.
+2. Double-click **Start Rojo.bat** (Windows) or **Start Rojo.command** (Mac). The first run downloads Rojo 7.7.0. Keep the window open. (You also need the Rojo plugin in Studio, from the Creator Store.)
 3. Open your place in Studio (restart Studio if it was already open), then click **Plugins → Rojo → Connect**.
 4. Build the map: in the Command Bar run `require(game.ServerStorage.BuildMap)()`.
 
