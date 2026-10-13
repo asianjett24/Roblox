@@ -171,6 +171,9 @@ function FishData.GetRarity(fishId: string)
 end
 
 -- Value of a caught creature: base value scaled by weight, size class and mutation.
+-- Deeper zones pay more (it takes longer to get there and back, and the guardians are faster).
+FishData.ZoneValue = { Shallows = 4, Reef = 5, Trench = 10, Abyss = 13, Rift = 6.5 }
+
 function FishData.GetValue(fishId: string, kg: number, sizeName: string?, mutation: string?): number
 	local f = FishData.ById[fishId]
 	if not f then
@@ -178,7 +181,7 @@ function FishData.GetValue(fishId: string, kg: number, sizeName: string?, mutati
 	end
 	local size = FishData.SizeByName[sizeName or "Normal"] or FishData.SizeByName.Normal
 	local avg = (f.MinKg + f.MaxKg) / 2 * size.Kg
-	local value = f.Value * size.Value * math.sqrt(math.max(kg, 0.01) / math.max(avg, 0.01))
+	local value = f.Value * (FishData.ZoneValue[f.Zone] or 1) * size.Value * math.sqrt(math.max(kg, 0.01) / math.max(avg, 0.01))
 	local mut = mutation and FishData.MutationByName[mutation]
 	if mut then
 		value *= mut.Value
