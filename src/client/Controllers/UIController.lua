@@ -272,19 +272,20 @@ function UIController.CoinBurst(from: GuiObject, count: number?)
 end
 
 -- Panels -------------------------------------------------------------------------------------
+local PANEL_SCALE = 0.9 -- panels are drawn a little smaller so the game stays visible around them
 local function setOpen(name: string?)
 	openName = name
 	for n, p in panels do
 		local want = n == name
 		if want and not p.Root.Visible then
 			p.Root.Visible = true
-			p.Scale.Scale = 0.7
-			tween(p.Scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+			p.Scale.Scale = 0.7 * PANEL_SCALE
+			tween(p.Scale, 0.35, { Scale = PANEL_SCALE }, Enum.EasingStyle.Back)
 			if UIController.Data and p.Refresh then
 				p.Refresh(UIController.Data)
 			end
 		elseif not want and p.Root.Visible then
-			tween(p.Scale, 0.15, { Scale = 0.8 }, Enum.EasingStyle.Back, Enum.EasingDirection.In).Completed:Connect(function()
+			tween(p.Scale, 0.15, { Scale = 0.8 * PANEL_SCALE }, Enum.EasingStyle.Back, Enum.EasingDirection.In).Completed:Connect(function()
 				if openName ~= n then
 					p.Root.Visible = false
 				end
