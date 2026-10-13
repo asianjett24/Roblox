@@ -97,6 +97,19 @@ end
 local function buildRig(e, at: CFrame?)
 	local rig = CreatureModels.Build(e.SpeciesId, e.Opts)
 	decorate(rig, e.Opts.Mutation)
+	-- Legendary and Mythic creatures glow softly in their rarity colour so they're easy to spot
+	local rarity = FishData.GetRarity(e.SpeciesId)
+	if FishData.RarityIndex[rarity.Name] >= FishData.RarityIndex.Legendary and not e.Opts.Simple then
+		local body = rig.Groups.body or rig.Groups.seg0
+		local part = body and body.Parts[1]
+		if part then
+			local light = Instance.new("PointLight")
+			light.Color = rarity.Color
+			light.Range = math.clamp(rig.L * 1.6, 10, 30)
+			light.Brightness = 1.2
+			light.Parent = part
+		end
+	end
 	-- move it into place before it's shown (models are built around the world origin)
 	local root = at or e.Root
 	if root then

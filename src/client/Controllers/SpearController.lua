@@ -696,7 +696,7 @@ local function updateHint()
 		UI.SetHint(if inWater then "SWIM UP! Get out of the water to bank your catch!" else nil)
 	elseif not gunTool then
 		UI.SetHint(if UserInputService.TouchEnabled then "Tap the speargun below to hold it" else "Press 1 to hold your speargun")
-	elseif not inWater and not Dive.FirstPerson then
+	elseif not inWater and not Dive.FirstPerson and (not UI.Data or (UI.Data.Caught or 0) < 3) then
 		UI.SetHint("Jump in the water and dive down to hunt!")
 	else
 		UI.SetHint(nil)
