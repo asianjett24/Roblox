@@ -27,7 +27,8 @@ folder.Parent = workspace
 local guardians = {} -- [zoneIndex] = { Zone, Spec, Rig, Buffer, Phase, Pos, Dir, State, Target, ... }
 local hud = {}
 local closeCallBonus = nil
-local INTERP_DELAY = 0.12
+local bountyReward = nil
+local INTERP_DELAY = 0.16 -- two snapshots behind (12 per second), so network jitter never runs it dry
 local SWIM = { Sleep = 0.35, Wake = 1.5, Chase = 2, Return = 1 }
 
 -- Guardian visuals ---------------------------------------------------------------------------------------
@@ -413,9 +414,23 @@ local function onChase(kind, info)
 		end
 	elseif kind == "CloseCall" then
 		closeCallBonus = info.Bonus
+	elseif kind == "Bounty" then
+		bountyReward = info.Reward
 	elseif kind == "Escaped" then
 		if info.Player == me then
-			if closeCallBonus then
+			if bountyReward then
+				local sub = "+" .. Format.Number(bountyReward) .. " coins"
+				if closeCallBonus then
+					sub ..= "  (+" .. Format.Number(closeCallBonus) .. " close call!)"
+				end
+				UI.Slam("BOUNTY DONE!", Color3.fromRGB(255, 210, 60), sub)
+				local card = UI.GetAnchor("Bounty")
+				if card then
+					UI.CoinBurst(card, 18)
+				end
+				bountyReward, closeCallBonus = nil, nil
+				confetti(130)
+			elseif closeCallBonus then
 				UI.Slam("CLOSE CALL!", Color3.fromRGB(255, 210, 60), "+" .. Format.Number(closeCallBonus) .. " bonus coins")
 				closeCallBonus = nil
 				confetti(110)

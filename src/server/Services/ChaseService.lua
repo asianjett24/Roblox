@@ -14,6 +14,7 @@ local Remotes = require(Shared.Remotes)
 local Zones = require(Shared.Zones)
 local DataService = require(script.Parent.DataService)
 local DiverService = require(script.Parent.DiverService)
+local BountyService = require(script.Parent.BountyService)
 
 local ChaseService = {}
 
@@ -167,6 +168,7 @@ local function bank(player: Player, head: BasePart?)
 		end
 	end
 	local value = FishData.GetValue(item.Id, item.Kg, item.Size, item.Mut)
+	BountyService.OnBank(player, data, item)
 	local closeCall = closest < Config.CloseCall.Distance
 	if closeCall then
 		local bonus = math.max(1, math.floor(value * Config.CloseCall.Bonus))

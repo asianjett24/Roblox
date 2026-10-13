@@ -33,6 +33,7 @@ local navButtons = {}
 local openName: string? = nil
 local toastHolder, hintFrame, hintLabel, slamHolder, carryBanner, carryLabel
 local coinsLabel, bagLabel, coinPill, bagPill
+local bounty = {} -- the bounty card: Root, Art, Name, Reward, Zone, Id
 local coinValue = Instance.new("NumberValue")
 local shownCoins, hasData = 0, false
 local panelListeners = {}
@@ -945,6 +946,29 @@ local function refreshAll(data)
 	end
 	shownCoins = data.Coins
 	hasData = true
+	if bounty.Root then
+		local b = data.Bounty
+		local f = b and FishData.ById[b.Id]
+		bounty.Root.Visible = f ~= nil
+		if f and bounty.Id ~= b.Id then
+			bounty.Id = b.Id
+			clearChildren(bounty.Art)
+			UIController.CreatureViewport(bounty.Art, b.Id, { Static = true }, { Size = UDim2.fromScale(1, 1), ZIndex = 3 })
+			bounty.Name.Text = b.Id
+			bounty.Zone.Text = string.upper(Zones.ByName[f.Zone].Display)
+			local rc = UIKit.RarityColors[f.Rarity]
+			bounty.Grad.Color = ColorSequence.new(rc[1], rc[2])
+			UIKit.hue(bounty.Card)
+			local s = bounty.Root:FindFirstChildOfClass("UIScale")
+			if s then
+				s.Scale = 1.25
+				tween(s, 0.45, { Scale = 1 }, Enum.EasingStyle.Back)
+			end
+		end
+		if b then
+			bounty.Reward.Text = "+" .. Format.Number(b.Reward)
+		end
+	end
 	local cap = if player:GetAttribute("BigBag") then 150 else Config.InventoryCap
 	bagLabel.Text = string.format("%d/%d", #data.Inventory, cap)
 	bagLabel.TextColor3 = if #data.Inventory >= cap then C.Danger else C.Text
@@ -1007,6 +1031,31 @@ function UIController.Init()
 	bagPill = bagHolder
 	icon("bag", 28, nil, { Position = UDim2.new(0, 7, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), ZIndex = 2, Parent = bagBox })
 	bagLabel = UIKit.fitText("0/" .. Config.InventoryCap, 19, C.Text, { Size = UDim2.new(1, -52, 0, 24), Position = UDim2.new(0, 40, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), ZIndex = 2, Parent = bagBox })
+
+	-- Bounty card (right side): the creature that pays a big bonus right now
+	local bRoot = make("Frame", { Name = "Bounty", Size = UDim2.fromOffset(232, 76), Position = UDim2.new(1, -14, 0.5, -30), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Visible = false, Parent = gui })
+	make("UIScale", { Parent = bRoot })
+	UIKit.softShadow(bRoot, 12, 6, 0.55)
+	local bCard = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true, Parent = bRoot }, {
+		UIKit.corner(14),
+		make("UIGradient", { Name = "G", Color = ColorSequence.new(UIKit.RarityColors.Common[1], UIKit.RarityColors.Common[2]), Rotation = 120 }),
+		UIKit.outline(2.5),
+	})
+	UIKit.shine(bCard, 12)
+	local artHolder = make("Frame", { Size = UDim2.fromOffset(70, 62), Position = UDim2.fromOffset(4, 7), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.8, ZIndex = 2, Parent = bCard }, { UIKit.corner(10) })
+	local tag = make("Frame", { Size = UDim2.fromOffset(74, 18), Position = UDim2.fromOffset(80, 6), BackgroundColor3 = C.Gold, ZIndex = 3, Parent = bCard }, { UIKit.round() })
+	UIKit.fitText("BOUNTY", 12, C.Text, { Size = UDim2.new(1, -8, 1, -2), Position = UDim2.fromOffset(4, 1), ZIndex = 4, Parent = tag }):FindFirstChildOfClass("UIStroke").Color = UIKit.deep(UIKit.Swatch.yellow[3], 0.3)
+	bounty = {
+		Root = bRoot, Card = bCard, Grad = bCard.G, Art = artHolder,
+		Name = UIKit.fitText("", 18, C.Text, { Size = UDim2.new(1, -88, 0, 22), Position = UDim2.fromOffset(80, 26), TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = bCard }),
+		Zone = UIKit.fitText("", 12, C.Text, { Size = UDim2.new(1, -90, 0, 15), Position = UDim2.fromOffset(80, 51), TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = bCard }),
+	}
+	local rewardRow = make("Frame", { Size = UDim2.fromOffset(70, 22), Position = UDim2.new(1, -8, 0, 4), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 3, Parent = bCard }, {
+		UIKit.list(Enum.FillDirection.Horizontal, 3, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center),
+	})
+	icon("coin", 16, nil, { LayoutOrder = 1, ZIndex = 3, Parent = rewardRow })
+	bounty.Reward = text("", 15, F.Title, C.Gold, { LayoutOrder = 2, ZIndex = 3, Parent = rewardRow })
+	UIController.Anchors.Bounty = bRoot
 
 	-- toasts stack down the right side so they never cover an open panel
 	toastHolder = make("Frame", { Size = UDim2.fromOffset(380, 300), Position = UDim2.new(1, -14, 0, 60), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 9, Parent = gui }, {

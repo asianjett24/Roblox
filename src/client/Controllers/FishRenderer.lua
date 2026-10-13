@@ -94,6 +94,42 @@ local function newEntry(speciesId: string, opts)
 	}
 end
 
+-- The current bounty creature gets a gold marker above it (pit creatures only).
+local bountyId = nil
+local function setMarker(e)
+	if not e.Rig or not e.Id then
+		return
+	end
+	local body = e.Rig.Groups.body or e.Rig.Groups.seg0
+	local part = body and body.Parts[1]
+	local old = part and part:FindFirstChild("BountyMarker")
+	local want = e.SpeciesId == bountyId
+	if old and not want then
+		old:Destroy()
+	elseif part and want and not old then
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "BountyMarker"
+		bb.Size = UDim2.fromOffset(110, 30)
+		bb.StudsOffsetWorldSpace = Vector3.new(0, math.max(2.5, e.Rig.L * 0.45), 0)
+		bb.MaxDistance = 120
+		bb.LightInfluence = 0
+		bb.AlwaysOnTop = true
+		bb.Parent = part
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Text = "BOUNTY"
+		label.TextSize = 18
+		label.FontFace = Font.fromEnum(Enum.Font.FredokaOne)
+		label.TextColor3 = Color3.fromRGB(255, 214, 70)
+		label.Parent = bb
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(90, 50, 0)
+		stroke.Thickness = 2
+		stroke.Parent = label
+	end
+end
+
 local function buildRig(e, at: CFrame?)
 	local rig = CreatureModels.Build(e.SpeciesId, e.Opts)
 	decorate(rig, e.Opts.Mutation)
@@ -122,6 +158,7 @@ local function buildRig(e, at: CFrame?)
 	rig.Model.Parent = folder
 	e.Rig = rig
 	e.Skip = math.huge -- pose again this frame
+	setMarker(e)
 end
 
 local function destroyRig(e)
@@ -513,6 +550,15 @@ function FishRenderer.Nearest(p: Vector3)
 end
 
 function FishRenderer.Init()
+	Remotes.DataChanged.OnClientEvent:Connect(function(data)
+		local id = data and data.Bounty and data.Bounty.Id
+		if id ~= bountyId then
+			bountyId = id
+			for _, e in fish do
+				setMarker(e)
+			end
+		end
+	end)
 	Remotes.FishSpawned.OnClientEvent:Connect(addFish)
 	Remotes.FishUpdated.OnClientEvent:Connect(updateFish)
 	Remotes.FishRemoved.OnClientEvent:Connect(removeFish)
