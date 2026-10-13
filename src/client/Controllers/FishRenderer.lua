@@ -383,8 +383,14 @@ local function step(dt: number)
 			local pos = FishPath.Position(e.Seg, t)
 			local dist = (pos - camPos).Magnitude
 			if want(e, dist) then
+				-- far creatures are re-posed less often (they're hard to see in the fog anyway)
+				e.Skip = (e.Skip or 0) + dt
+				local every = if dist > 110 then 3 / 60 elseif dist > 60 then 2 / 60 else 0
 				steer(e, pos, FishPath.Velocity(e.Seg, t), dt)
-				CreatureModels.Pose(e.Rig, e.Root, e.Phase, e.Swim, parts, cframes)
+				if e.Skip >= every then
+					e.Skip = 0
+					CreatureModels.Pose(e.Rig, e.Root, e.Phase, e.Swim, parts, cframes)
+				end
 				local head, tail, radius = CreatureModels.Capsule(e.Rig, e.Root)
 				table.insert(targets, { Id = id, Head = head, Tail = tail, Radius = radius, Entry = e })
 			else
