@@ -18,18 +18,23 @@ Config.MaxReelTime = 45 -- a bite that isn't resolved by then is dropped
 --   * part whose Name is in WaterNames
 --   * part with Material = Water, or Terrain water
 Config.WaterTag = "FishingWater"
-Config.WaterNames = { "WaterTri", "Water", "Hole", "Pond" }
+Config.WaterNames = { "WaterTri", "Water" }
 
--- Plots: Models tagged "Plot", or the children of workspace.Plots
+-- Plots: Models tagged "Plot" (BuildMap.lua does this), or the children of workspace.Plots.
+-- A part named "Dock" inside a plot is that player's private dock; "Spawn" is where they spawn;
+-- "TankWater" is where their caught fish swim.
 Config.PlotTag = "Plot"
 Config.PlotFolderName = "Plots"
 
--- Optional merchant: tag any part "Merchant" to give it Sell / Shop prompts.
+-- Tag a part "Merchant" for a Sell prompt, "RodShop" for a Browse Rods prompt.
 Config.MerchantTag = "Merchant"
+Config.RodShopTag = "RodShop"
 Config.SellAnywhere = true -- the Bag's "Sell All" works anywhere
 
--- Private pond upgrades (the hole on each plot)
-Config.Pond = {
+Config.TankMaxFish = 10 -- fish shown swimming in your base tank
+
+-- Private dock upgrades (fishing from your own base's dock)
+Config.Dock = {
 	MaxLevel = 5,
 	Costs = { 750, 3000, 12000, 40000 }, -- cost to go from level N to N+1
 	LuckPerLevel = 0.12,

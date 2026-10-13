@@ -1,33 +1,21 @@
 # Castle Fishing
 
-A Roblox fishing game built on the castle island map. Each player gets one of the pads as their plot. The hole in the pad is their **private pond**, and the big central pool is shared by everyone.
+A Roblox fishing game on a walled castle island. There are 8 numbered bases around a huge 600m-deep pond, and each base has its own private dock. Players get a base when they join.
 
 ## Gameplay loop
-1. Join and spawn on your plot with a **Basic Rod**.
+1. Join and spawn at your base with a **Basic Rod**.
 2. Equip the rod and **click the water** to cast. Wait for the `!`.
 3. Win the **reel minigame**: hold click, tap or Space to keep the green bar on the fish until the meter fills.
-4. Open the **Bag** and **Sell All** for coins.
-5. Buy better rods in the **Shop** (more luck, faster bites, a wider reel bar and longer range).
-6. **Upgrade your Pond** for extra luck and faster bites when fishing at home.
-7. Fill out the **Index**. There are 16 fish across 6 rarities. Some only live in the Pool and some only in Ponds.
+4. Sell at the **Fish Market** stall, or press **Sell All** in your Bag.
+5. Buy better rods at the **Rod Shop** (walk up to the door) or from the Shop button.
+6. Fish from **your own dock** to find dock-only fish, and **upgrade your dock** for more luck.
+7. The fish you're carrying swim around in your base's **tank**.
+8. Fill out the **Index**: 16 fish across 6 rarities.
 
-Progress saves with DataStores. Legendary and Mythic catches are announced to the whole server.
-
-## Setup (Rojo)
-1. Install the Rojo plugin in Studio from the Creator Store ("Rojo" by rojo-rbx).
-2. Install the Rojo CLI. Use `aftman install` in this folder, or download it from https://github.com/rojo-rbx/rojo/releases (v7.4.x).
-3. Run `rojo serve` in this folder.
-4. In Studio, open your castle place, click the Rojo plugin, then click **Connect**. The scripts show up in ReplicatedStorage, ServerScriptService and StarterPlayerScripts, and edits sync live.
-
-## One-time map setup in Studio
-The scripts need to know which parts are plots and which parts are water:
-
-- **Plots:** create a Folder named `Plots` in Workspace and move each pad Model into it. You can tag each pad Model `Plot` with the Tag editor instead.
-  - Optional: add a part named `Spawn` inside a plot to choose exactly where its owner spawns.
-- **Plot holes (ponds):** put a water part in each hole, inside that plot's Model. Name it `Hole` or `Pond`, or tag it `FishingWater`.
-- **Central pool:** parts named `WaterTri` or `Water` already count, as does anything with the Water material, Terrain water, or the `FishingWater` tag.
-- **Merchant (optional):** tag any part `Merchant` to give it a "Sell All Fish" prompt. Set `Config.SellAnywhere = false` to require visiting it.
-- Turn on **Game Settings → Security → Enable Studio Access to API Services** so saving works while you test.
+## Files
+- `map/BuildMap.lua`: builds the whole map. Paste it into Studio's Command Bar.
+- `CastleFishing.rbxm`: all the game scripts in one drag-in file.
+- `src/`: the same scripts as source code (for Rojo users).
 
 ## Tuning
 All balance numbers are in `src/shared`:

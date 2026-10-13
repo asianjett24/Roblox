@@ -48,14 +48,6 @@ local function clear(player: Player)
 	sessions[player] = nil
 end
 
--- Returns zone name and the owning plot (for ponds).
-local function zoneFor(result: RaycastResult)
-	local plot = PlotService.PlotOfPart(result.Instance) or PlotService.PlotAtPosition(result.Position)
-	if plot then
-		return "Pond", plot
-	end
-	return "Pool", nil
-end
 
 local function onCast(player: Player, target)
 	if typeof(target) ~= "Vector3" or target ~= target then
@@ -96,15 +88,13 @@ local function onCast(player: Player, target)
 		return false, "You can only fish in water"
 	end
 
-	local zone, plot = zoneFor(result)
+	-- Standing on your own base's dock gets dock-only fish and your dock upgrades.
+	local zone = if PlotService.IsOnOwnDock(player) then "Dock" else "Open"
 	local luck, biteSpeed = rod.Luck, rod.BiteSpeed
-	if zone == "Pond" then
-		if PlotService.OwnerOf(plot) ~= player then
-			return false, "That's someone else's pond!"
-		end
-		local bonus = data.PondLevel - 1
-		luck *= 1 + Config.Pond.LuckPerLevel * bonus
-		biteSpeed *= 1 + Config.Pond.BiteSpeedPerLevel * bonus
+	if zone == "Dock" then
+		local bonus = data.DockLevel - 1
+		luck *= 1 + Config.Dock.LuckPerLevel * bonus
+		biteSpeed *= 1 + Config.Dock.BiteSpeedPerLevel * bonus
 	end
 
 	local fish, kg = FishData.Roll(zone, luck, rng)

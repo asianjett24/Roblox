@@ -2,8 +2,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local EVENTS = { "Bite", "CatchResult", "DataChanged", "Notify", "Announce", "Reel" }
-local FUNCTIONS = { "Cast", "GetData", "SellAll", "BuyRod", "EquipRod", "UpgradePond" }
+local EVENTS = { "Bite", "CatchResult", "DataChanged", "Notify", "Announce", "Reel", "OpenPanel" }
+local FUNCTIONS = { "Cast", "GetData", "SellAll", "BuyRod", "EquipRod", "UpgradeDock" }
 
 local Remotes = {}
 local folder

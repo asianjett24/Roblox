@@ -1,4 +1,4 @@
--- Every fish in the game. Zone: "Pool" (central pool), "Pond" (plot holes) or "Any".
+-- Every fish in the game. Zone: "Open" (anywhere except your dock), "Dock" (your own base's dock) or "Any".
 local FishData = {}
 
 FishData.Rarities = {
@@ -18,27 +18,29 @@ end
 -- Value is the price of an average-weight fish.
 FishData.Fish = {
 	{ Id = "Minnow", Rarity = "Common", Zone = "Any", MinKg = 0.1, MaxKg = 0.4, Value = 5 },
-	{ Id = "Sardine", Rarity = "Common", Zone = "Pool", MinKg = 0.2, MaxKg = 0.6, Value = 7 },
-	{ Id = "Bluegill", Rarity = "Common", Zone = "Pond", MinKg = 0.2, MaxKg = 0.8, Value = 8 },
+	{ Id = "Sardine", Rarity = "Common", Zone = "Open", MinKg = 0.2, MaxKg = 0.6, Value = 7 },
+	{ Id = "Bluegill", Rarity = "Common", Zone = "Dock", MinKg = 0.2, MaxKg = 0.8, Value = 8 },
 	{ Id = "Perch", Rarity = "Uncommon", Zone = "Any", MinKg = 0.4, MaxKg = 1.5, Value = 18 },
-	{ Id = "Mackerel", Rarity = "Uncommon", Zone = "Pool", MinKg = 0.5, MaxKg = 2, Value = 22 },
-	{ Id = "Koi", Rarity = "Uncommon", Zone = "Pond", MinKg = 0.8, MaxKg = 3, Value = 25 },
-	{ Id = "Salmon", Rarity = "Rare", Zone = "Pool", MinKg = 2, MaxKg = 8, Value = 60 },
-	{ Id = "Catfish", Rarity = "Rare", Zone = "Pond", MinKg = 2, MaxKg = 12, Value = 65 },
+	{ Id = "Mackerel", Rarity = "Uncommon", Zone = "Open", MinKg = 0.5, MaxKg = 2, Value = 22 },
+	{ Id = "Koi", Rarity = "Uncommon", Zone = "Dock", MinKg = 0.8, MaxKg = 3, Value = 25 },
+	{ Id = "Salmon", Rarity = "Rare", Zone = "Open", MinKg = 2, MaxKg = 8, Value = 60 },
+	{ Id = "Catfish", Rarity = "Rare", Zone = "Dock", MinKg = 2, MaxKg = 12, Value = 65 },
 	{ Id = "Pufferfish", Rarity = "Rare", Zone = "Any", MinKg = 0.5, MaxKg = 2, Value = 70 },
-	{ Id = "Swordfish", Rarity = "Epic", Zone = "Pool", MinKg = 30, MaxKg = 120, Value = 220 },
-	{ Id = "Golden Koi", Rarity = "Epic", Zone = "Pond", MinKg = 1, MaxKg = 4, Value = 250 },
+	{ Id = "Swordfish", Rarity = "Epic", Zone = "Open", MinKg = 30, MaxKg = 120, Value = 220 },
+	{ Id = "Golden Koi", Rarity = "Epic", Zone = "Dock", MinKg = 1, MaxKg = 4, Value = 250 },
 	{ Id = "Anglerfish", Rarity = "Epic", Zone = "Any", MinKg = 3, MaxKg = 20, Value = 200 },
-	{ Id = "Castle Carp", Rarity = "Legendary", Zone = "Pond", MinKg = 10, MaxKg = 40, Value = 900 },
-	{ Id = "Great White", Rarity = "Legendary", Zone = "Pool", MinKg = 300, MaxKg = 1100, Value = 1100 },
-	{ Id = "Moon Eel", Rarity = "Mythic", Zone = "Pool", MinKg = 5, MaxKg = 25, Value = 5000 },
-	{ Id = "Royal Leviathan", Rarity = "Mythic", Zone = "Pond", MinKg = 200, MaxKg = 900, Value = 6500 },
+	{ Id = "Castle Carp", Rarity = "Legendary", Zone = "Dock", MinKg = 10, MaxKg = 40, Value = 900 },
+	{ Id = "Great White", Rarity = "Legendary", Zone = "Open", MinKg = 300, MaxKg = 1100, Value = 1100 },
+	{ Id = "Moon Eel", Rarity = "Mythic", Zone = "Open", MinKg = 5, MaxKg = 25, Value = 5000 },
+	{ Id = "Royal Leviathan", Rarity = "Mythic", Zone = "Dock", MinKg = 200, MaxKg = 900, Value = 6500 },
 }
 
 FishData.ById = {}
 for _, fish in ipairs(FishData.Fish) do
 	FishData.ById[fish.Id] = fish
 end
+
+FishData.ZoneNames = { Any = "Anywhere", Open = "Open Water", Dock = "Your Dock" }
 
 function FishData.GetValue(fishId: string, kg: number): number
 	local fish = FishData.ById[fishId]

@@ -1,4 +1,4 @@
--- Builds all the menus in code: coins HUD, Bag, Rod Shop, Fish Index, Pond, toasts.
+-- Builds all the menus in code: coins HUD, Bag, Rod Shop, Fish Index, Dock upgrades, toasts.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -252,37 +252,37 @@ local function buildIndex()
 			end
 			local cell = make("Frame", { BackgroundColor3 = PANEL, LayoutOrder = FishData.RarityIndex[fish.Rarity] * 100 + i, Parent = body }, { corner(8), stroke(rarity.Color, 2) })
 			label({ Text = if best then fish.Id else "???", Size = UDim2.new(1, -8, 0.4, 0), Position = UDim2.fromOffset(4, 4), TextColor3 = if best then rarity.Color else Color3.fromRGB(120, 120, 130), Parent = cell })
-			label({ Text = rarity.Name .. " · " .. fish.Zone, Size = UDim2.new(1, -8, 0.25, 0), Position = UDim2.new(0, 4, 0.45, 0), TextColor3 = Color3.fromRGB(170, 180, 200), Parent = cell })
+			label({ Text = rarity.Name .. " · " .. FishData.ZoneNames[fish.Zone], Size = UDim2.new(1, -8, 0.25, 0), Position = UDim2.new(0, 4, 0.45, 0), TextColor3 = Color3.fromRGB(170, 180, 200), Parent = cell })
 			label({ Text = if best then "Best: " .. Format.Kg(best) else "", Size = UDim2.new(1, -8, 0.22, 0), Position = UDim2.new(0, 4, 0.73, 0), TextColor3 = Color3.fromRGB(255, 220, 90), Parent = cell })
 		end
 		progress.Text = string.format("Discovered %d / %d", found, #FishData.Fish)
 	end
 end
 
--- Pond
-local function buildPond()
-	local _, body, footer = makePanel("Pond", "My Pond")
-	local info = label({ Size = UDim2.new(1, 0, 0, 120), TextScaled = false, TextSize = 20, TextWrapped = true, Parent = body })
+-- Dock
+local function buildDock()
+	local _, body, footer = makePanel("Dock", "My Dock")
+	local info = label({ Size = UDim2.new(1, 0, 0, 150), TextScaled = false, TextSize = 20, TextWrapped = true, Parent = body })
 	local upgrade = button("Upgrade", GOOD, { Size = UDim2.fromScale(1, 1), Parent = footer })
 	upgrade.Activated:Connect(function()
-		local ok, msg = Remotes.UpgradePond:InvokeServer()
+		local ok, msg = Remotes.UpgradeDock:InvokeServer()
 		UIController.Notify(msg, if ok then "success" else "error")
 	end)
-	refreshers.Pond = function(data)
-		local lvl = data.PondLevel
+	refreshers.Dock = function(data)
+		local lvl = data.DockLevel
 		local bonus = lvl - 1
 		info.Text = string.format(
-			"The hole on your plot is your private pond.\nOnly you can fish there, and it has its own fish.\n\nLevel %d / %d\nLuck +%d%%  ·  Bite speed +%d%%",
+			"Your base has its own private dock.\nFish from it to find dock-only fish\nand get these bonuses:\n\nLevel %d / %d\nLuck +%d%%  ·  Bite speed +%d%%",
 			lvl,
-			Config.Pond.MaxLevel,
-			math.floor(Config.Pond.LuckPerLevel * bonus * 100 + 0.5),
-			math.floor(Config.Pond.BiteSpeedPerLevel * bonus * 100 + 0.5)
+			Config.Dock.MaxLevel,
+			math.floor(Config.Dock.LuckPerLevel * bonus * 100 + 0.5),
+			math.floor(Config.Dock.BiteSpeedPerLevel * bonus * 100 + 0.5)
 		)
-		if lvl >= Config.Pond.MaxLevel then
+		if lvl >= Config.Dock.MaxLevel then
 			upgrade.Text = "Max Level"
 			upgrade.BackgroundColor3 = Color3.fromRGB(90, 90, 100)
 		else
-			local cost = Config.Pond.Costs[lvl]
+			local cost = Config.Dock.Costs[lvl]
 			upgrade.Text = "Upgrade (" .. Format.Number(cost) .. " c)"
 			upgrade.BackgroundColor3 = if data.Coins >= cost then GOOD else Color3.fromRGB(120, 120, 130)
 		end
@@ -348,8 +348,8 @@ function UIController.Init()
 	buildBag()
 	buildShop()
 	buildIndex()
-	buildPond()
-	for i, entry in { { "Bag", Color3.fromRGB(80, 160, 90) }, { "Shop", Color3.fromRGB(230, 150, 50) }, { "Index", Color3.fromRGB(150, 90, 220) }, { "Pond", ACCENT } } do
+	buildDock()
+	for i, entry in { { "Bag", Color3.fromRGB(80, 160, 90) }, { "Shop", Color3.fromRGB(230, 150, 50) }, { "Index", Color3.fromRGB(150, 90, 220) }, { "Dock", ACCENT } } do
 		local name = entry[1]
 		local b = button(name, entry[2], { Size = UDim2.new(1, 0, 0, 48), LayoutOrder = i, Parent = menu })
 		b.Activated:Connect(function()
@@ -361,6 +361,12 @@ function UIController.Init()
 
 	Remotes.DataChanged.OnClientEvent:Connect(refreshAll)
 	Remotes.Notify.OnClientEvent:Connect(UIController.Notify)
+	Remotes.OpenPanel.OnClientEvent:Connect(function(name)
+		if panels[name] then
+			closeAll(name)
+			panels[name].Visible = true
+		end
+	end)
 	Remotes.Announce.OnClientEvent:Connect(function(name, fishId, rarityName, kg)
 		UIController.Notify(string.format("%s caught a %s %s (%s)!", name, rarityName, fishId, Format.Kg(kg)), "success")
 	end)

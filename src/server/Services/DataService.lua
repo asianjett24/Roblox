@@ -20,6 +20,10 @@ end
 local profiles: { [Player]: any } = {}
 local loadFailed: { [Player]: boolean } = {}
 local loadedSignal = Instance.new("BindableEvent")
+local changedSignal = Instance.new("BindableEvent")
+
+-- Fires (player, data) whenever a player's data changes.
+DataService.OnChanged = changedSignal.Event
 
 local function defaultData()
 	return {
@@ -29,7 +33,7 @@ local function defaultData()
 		Inventory = {}, -- { {Id=string, Kg=number}, ... }
 		Discovered = {}, -- [fishId] = best kg
 		Caught = 0,
-		PondLevel = 1,
+		DockLevel = 1,
 	}
 end
 
@@ -137,6 +141,7 @@ function DataService.Changed(player: Player)
 		stats.Caught.Value = data.Caught
 	end
 	Remotes.DataChanged:FireClient(player, data)
+	changedSignal:Fire(player, data)
 end
 
 function DataService.Init()

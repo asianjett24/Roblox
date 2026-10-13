@@ -1,9 +1,14 @@
--- Gives each player one of the pads as their plot and spawns them on it.
+-- Gives each player one of the bases, spawns them on it, shows their name on it,
+-- knows when they're on their own dock, and fills their tank with the fish they're carrying.
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
-local Config = require(ReplicatedStorage.Shared.Config)
+local Shared = ReplicatedStorage.Shared
+local Config = require(Shared.Config)
+local FishData = require(Shared.FishData)
+local DataService = require(script.Parent.DataService)
 
 local PlotService = {}
 
@@ -19,73 +24,132 @@ local function findPlots()
 		end
 	end
 	if #found == 0 then
-		warn("[PlotService] No plots found. Tag each pad Model 'Plot' or put them in workspace.Plots (see README).")
+		warn("[PlotService] No plots found. Run map/BuildMap.lua in the Command Bar (see README).")
 	end
+	table.sort(found, function(a, b)
+		return (a:GetAttribute("BaseIndex") or 0) < (b:GetAttribute("BaseIndex") or 0)
+	end)
 	return found
 end
 
-local function pivotOf(plot: Instance): CFrame
-	if plot:IsA("Model") then
-		return plot:GetPivot()
-	elseif plot:IsA("BasePart") then
-		return plot.CFrame
+local function mainPart(plot: Instance): BasePart?
+	if plot:IsA("BasePart") then
+		return plot
 	end
-	return CFrame.new()
+	return (plot :: Model).PrimaryPart or plot:FindFirstChildWhichIsA("BasePart", true)
 end
 
 local function spawnCFrame(plot: Instance): CFrame
 	local marker = plot:FindFirstChild("Spawn", true)
 	if marker and marker:IsA("BasePart") then
-		return marker.CFrame + Vector3.new(0, 3, 0)
+		return marker.CFrame + Vector3.new(0, 4, 0)
 	end
-	local cf, size
-	if plot:IsA("Model") then
-		cf, size = plot:GetBoundingBox()
-	else
-		cf, size = pivotOf(plot), (plot :: BasePart).Size
-	end
-	-- Stand on the pad's edge rather than in the hole.
-	return CFrame.new(cf.Position + cf.LookVector * (size.Z * 0.35) + Vector3.new(0, size.Y / 2 + 3, 0), cf.Position)
+	local part = mainPart(plot)
+	return (part and part.CFrame or CFrame.new()) + Vector3.new(0, 5, 0)
 end
 
 local function setSign(plot: Instance, player: Player?)
-	local adornee = plot:IsA("Model") and (plot.PrimaryPart or plot:FindFirstChildWhichIsA("BasePart", true)) or plot
 	local gui = plot:FindFirstChild("OwnerSign")
 	if not gui then
 		gui = Instance.new("BillboardGui")
 		gui.Name = "OwnerSign"
-		gui.Size = UDim2.fromOffset(220, 50)
-		gui.StudsOffsetWorldSpace = Vector3.new(0, 9, 0)
-		gui.AlwaysOnTop = false
-		gui.MaxDistance = 120
+		gui.Size = UDim2.fromOffset(240, 56)
+		gui.StudsOffsetWorldSpace = Vector3.new(0, 16, 0)
+		gui.MaxDistance = 250
 		local label = Instance.new("TextLabel")
 		label.Name = "Label"
 		label.Size = UDim2.fromScale(1, 1)
 		label.BackgroundTransparency = 1
 		label.Font = Enum.Font.FredokaOne
 		label.TextScaled = true
-		label.TextColor3 = Color3.new(1, 1, 1)
-		label.TextStrokeTransparency = 0.3
+		label.TextStrokeTransparency = 0
 		label.Parent = gui
 		gui.Parent = plot
 	end
-	gui.Adornee = adornee
-	gui.Label.Text = if player then player.DisplayName .. "'s Pond" else "Empty Plot"
+	gui.Adornee = mainPart(plot)
+	local index = plot:GetAttribute("BaseIndex")
+	local name = if index then "Base " .. index else "Plot"
+	if player then
+		gui.Label.Text = player.DisplayName .. "'s Base"
+		gui.Label.TextColor3 = Color3.fromRGB(255, 220, 90)
+	else
+		gui.Label.Text = name .. " · Free"
+		gui.Label.TextColor3 = Color3.fromRGB(220, 220, 220)
+	end
 end
 
+-- Tank --------------------------------------------------------------------
+local function updateTank(player: Player, data)
+	local plot = PlotService.GetPlot(player)
+	local water = plot and plot:FindFirstChild("TankWater", true)
+	if not water or not water:IsA("BasePart") then
+		return
+	end
+	local holder = plot:FindFirstChild("TankFish")
+	if holder then
+		holder:Destroy()
+	end
+	holder = Instance.new("Folder")
+	holder.Name = "TankFish"
+	holder.Parent = plot
+
+	local items = table.clone(data.Inventory)
+	table.sort(items, function(a, b)
+		return FishData.GetValue(a.Id, a.Kg) > FishData.GetValue(b.Id, b.Kg)
+	end)
+	local size = water.Size
+	for i = 1, math.min(#items, Config.TankMaxFish) do
+		local rarity = FishData.GetRarity(items[i].Id)
+		local fish = Instance.new("Part")
+		fish.Name = items[i].Id
+		fish.Size = Vector3.new(0.5, 0.7, 1.4)
+		fish.Color = rarity.Color
+		fish.Material = if rarity.Name == "Mythic" or rarity.Name == "Legendary" then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		fish.Anchored = true
+		fish.CanCollide = false
+		fish.CanQuery = false
+		fish.CastShadow = false
+		local function randomPoint()
+			return water.CFrame * Vector3.new(
+				(math.random() - 0.5) * (size.X - 2),
+				(math.random() - 0.5) * (size.Y - 1.5),
+				(math.random() - 0.5) * (size.Z - 2)
+			)
+		end
+		local a, b = randomPoint(), randomPoint()
+		fish.CFrame = CFrame.lookAt(a, b)
+		local tail = Instance.new("Part")
+		tail.Name = "Tail"
+		tail.Size = Vector3.new(0.2, 0.6, 0.5)
+		tail.Color = rarity.Color
+		tail.Anchored = true
+		tail.CanCollide = false
+		tail.CanQuery = false
+		tail.CastShadow = false
+		tail.CFrame = fish.CFrame * CFrame.new(0, 0, 0.9)
+		tail.Parent = fish
+		fish.Parent = holder
+		-- Swim back and forth between two points.
+		task.spawn(function()
+			local from, to = a, b
+			while fish.Parent do
+				local dur = (to - from).Magnitude / (1.5 + math.random())
+				fish.CFrame = CFrame.lookAt(from, to)
+				tail.CFrame = fish.CFrame * CFrame.new(0, 0, 0.9)
+				local goal = CFrame.lookAt(to, to + (to - from))
+				TweenService:Create(fish, TweenInfo.new(dur, Enum.EasingStyle.Sine), { CFrame = goal }):Play()
+				TweenService:Create(tail, TweenInfo.new(dur, Enum.EasingStyle.Sine), { CFrame = goal * CFrame.new(0, 0, 0.9) }):Play()
+				task.wait(dur + 0.3)
+				from, to = to, randomPoint()
+			end
+		end)
+	end
+end
+
+-- Public API ----------------------------------------------------------------
 function PlotService.GetPlot(player: Player)
 	for plot, owner in ownerOf do
 		if owner == player then
-			return plot
-		end
-	end
-	return nil
-end
-
--- Returns the plot a part belongs to, if any.
-function PlotService.PlotOfPart(part: Instance)
-	for _, plot in plots do
-		if part == plot or part:IsDescendantOf(plot) then
 			return plot
 		end
 	end
@@ -96,23 +160,23 @@ function PlotService.OwnerOf(plot: Instance): Player?
 	return ownerOf[plot]
 end
 
--- Fallback when the pad hole isn't a separate part: nearest plot within its own footprint.
-function PlotService.PlotAtPosition(pos: Vector3)
-	for _, plot in plots do
-		local cf, size
-		if plot:IsA("Model") then
-			cf, size = plot:GetBoundingBox()
-		elseif plot:IsA("BasePart") then
-			cf, size = plot.CFrame, plot.Size
-		end
-		if cf then
-			local rel = cf:PointToObjectSpace(pos)
-			if math.abs(rel.X) <= size.X / 2 and math.abs(rel.Z) <= size.Z / 2 and math.abs(rel.Y) <= size.Y / 2 + 4 then
-				return plot
+-- True when the player is standing on (or right next to) their own base's dock.
+function PlotService.IsOnOwnDock(player: Player): boolean
+	local plot = PlotService.GetPlot(player)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not plot or not root then
+		return false
+	end
+	for _, name in { "Dock", "DockEnd" } do
+		local part = plot:FindFirstChild(name, true)
+		if part and part:IsA("BasePart") then
+			local rel = part.CFrame:PointToObjectSpace(root.Position)
+			if math.abs(rel.X) <= part.Size.X / 2 + 2 and math.abs(rel.Z) <= part.Size.Z / 2 + 2 and rel.Y > -2 and rel.Y < 10 then
+				return true
 			end
 		end
 	end
-	return nil
+	return false
 end
 
 local function assign(player: Player)
@@ -121,6 +185,10 @@ local function assign(player: Player)
 			ownerOf[plot] = player
 			plot:SetAttribute("OwnerUserId", player.UserId)
 			setSign(plot, player)
+			local data = DataService.Get(player)
+			if data then
+				task.defer(updateTank, player, data)
+			end
 			return plot
 		end
 	end
@@ -135,13 +203,15 @@ function PlotService.Init()
 
 	local function onPlayer(player: Player)
 		local plot = assign(player)
+		if not plot then
+			warn("[PlotService] No free base for", player.Name)
+		end
 		local function onCharacter(char: Model)
 			local current = PlotService.GetPlot(player)
 			if not current then
 				return
 			end
-			local root = char:WaitForChild("HumanoidRootPart", 5)
-			if root then
+			if char:WaitForChild("HumanoidRootPart", 5) then
 				task.wait() -- let the default spawn finish first
 				char:PivotTo(spawnCFrame(current))
 			end
@@ -149,9 +219,6 @@ function PlotService.Init()
 		player.CharacterAdded:Connect(onCharacter)
 		if player.Character then
 			task.spawn(onCharacter, player.Character)
-		end
-		if not plot then
-			warn("[PlotService] No free plot for", player.Name)
 		end
 	end
 
@@ -165,9 +232,14 @@ function PlotService.Init()
 				ownerOf[plot] = nil
 				plot:SetAttribute("OwnerUserId", nil)
 				setSign(plot, nil)
+				local fish = plot:FindFirstChild("TankFish")
+				if fish then
+					fish:Destroy()
+				end
 			end
 		end
 	end)
+	DataService.OnChanged:Connect(updateTank)
 end
 
 return PlotService

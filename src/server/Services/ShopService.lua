@@ -1,4 +1,4 @@
--- Selling fish, buying/equipping rods, upgrading your pond.
+-- Selling fish, buying/equipping rods, upgrading your dock.
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -86,22 +86,22 @@ function ShopService.Init()
 		return true, "Equipped " .. RodData.ById[rodId].Name
 	end
 
-	Remotes.UpgradePond.OnServerInvoke = function(player)
+	Remotes.UpgradeDock.OnServerInvoke = function(player)
 		local data = DataService.Get(player)
 		if not data then
 			return false, "Data not loaded"
 		end
-		if data.PondLevel >= Config.Pond.MaxLevel then
-			return false, "Pond is max level"
+		if data.DockLevel >= Config.Dock.MaxLevel then
+			return false, "Dock is max level"
 		end
-		local cost = Config.Pond.Costs[data.PondLevel]
+		local cost = Config.Dock.Costs[data.DockLevel]
 		if data.Coins < cost then
 			return false, "Not enough coins"
 		end
 		data.Coins -= cost
-		data.PondLevel += 1
+		data.DockLevel += 1
 		DataService.Changed(player)
-		return true, "Pond upgraded to level " .. data.PondLevel .. "!"
+		return true, "Dock upgraded to level " .. data.DockLevel .. "!"
 	end
 
 	-- Merchant prompts on any part tagged "Merchant".
@@ -125,6 +125,27 @@ function ShopService.Init()
 		setupMerchant(part)
 	end
 	CollectionService:GetInstanceAddedSignal(Config.MerchantTag):Connect(setupMerchant)
+
+	-- Rod shop prompts open the Shop menu.
+	local function setupRodShop(part: Instance)
+		if not part:IsA("BasePart") or part:FindFirstChild("ShopPrompt") then
+			return
+		end
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "ShopPrompt"
+		prompt.ActionText = "Browse Rods"
+		prompt.ObjectText = "Rod Shop"
+		prompt.RequiresLineOfSight = false
+		prompt.MaxActivationDistance = 14
+		prompt.Parent = part
+		prompt.Triggered:Connect(function(player)
+			Remotes.OpenPanel:FireClient(player, "Shop")
+		end)
+	end
+	for _, part in CollectionService:GetTagged(Config.RodShopTag) do
+		setupRodShop(part)
+	end
+	CollectionService:GetInstanceAddedSignal(Config.RodShopTag):Connect(setupRodShop)
 end
 
 return ShopService
