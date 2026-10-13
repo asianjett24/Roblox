@@ -946,6 +946,23 @@ local function refreshAll(data)
 	end
 	shownCoins = data.Coins
 	hasData = true
+	-- Shop alert: a speargun or upgrade you can afford right now
+	local shop = navButtons.Shop
+	if shop then
+		local can = false
+		for _, gun in GunData.List do
+			if not data.OwnedGuns[gun.Id] and gun.Price > 0 and data.Coins >= gun.Price then
+				can = true
+			end
+		end
+		for _, up in { { Config.Tank, data.TankLevel or 1 }, { Config.Fins, data.FinLevel or 1 } } do
+			local cost = up[1].Costs[up[2]]
+			if cost and data.Coins >= cost then
+				can = true
+			end
+		end
+		shop.Alert.Visible = can
+	end
 	if bounty.Root then
 		local b = data.Bounty
 		local f = b and FishData.ById[b.Id]
@@ -1031,6 +1048,11 @@ function UIController.Init()
 	bagPill = bagHolder
 	icon("bag", 28, nil, { Position = UDim2.new(0, 7, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), ZIndex = 2, Parent = bagBox })
 	bagLabel = UIKit.fitText("0/" .. Config.InventoryCap, 19, C.Text, { Size = UDim2.new(1, -52, 0, 24), Position = UDim2.new(0, 40, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), ZIndex = 2, Parent = bagBox })
+	-- the bag counter opens the Bag
+	local bagHit = make("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 3, Parent = bagBox })
+	bagHit.Activated:Connect(function()
+		setOpen(if openName == "Bag" then nil else "Bag")
+	end)
 
 	-- Bounty card (right side): the creature that pays a big bonus right now
 	local bRoot = make("Frame", { Name = "Bounty", Size = UDim2.fromOffset(232, 76), Position = UDim2.new(1, -14, 0.5, -30), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Visible = false, Parent = gui })
@@ -1115,10 +1137,17 @@ function UIController.Init()
 		local selected = make("Frame", { Size = UDim2.fromOffset(12, 12), Position = UDim2.new(1, 10, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = 45, BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = b }, {
 			UIKit.corner(3),
 		})
+		-- red "!" (inside the top-left corner) when there's something new to do here
+		local alert = make("Frame", { Name = "Alert", Size = UDim2.fromOffset(18, 18), Position = UDim2.fromOffset(3, 3), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, ZIndex = 6, Parent = face }, {
+			UIKit.round(),
+			UIKit.gradient(UIKit.Swatch.red[1], UIKit.Swatch.red[2]),
+			UIKit.outline(1.5),
+		})
+		text("!", 13, F.Title, C.Text, { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 7, Parent = alert })
 		b.Activated:Connect(function()
 			setOpen(if openName == n.Name then nil else n.Name)
 		end)
-		navButtons[n.Name] = { Button = b, Selected = selected }
+		navButtons[n.Name] = { Button = b, Selected = selected, Alert = alert }
 	end
 
 	UserInputService.InputBegan:Connect(function(input, processed)
