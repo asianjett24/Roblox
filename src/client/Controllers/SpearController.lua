@@ -34,6 +34,8 @@ local recoil = 0
 local reticle = {}
 local menuOpen = false
 local toolHidden = false
+local lastFire = -10 -- on land you only turn to aim for a moment after firing
+local AIM_HOLD = 0.7
 
 local spearFolder = Instance.new("Folder")
 spearFolder.Name = "ClientSpears"
@@ -774,11 +776,13 @@ local function onRender(dt: number)
 	end
 	recoil = math.max(0, recoil - dt * 5)
 
-	-- On land, turn to face where you're aiming so the gun points at it.
+	-- On land, turn to face where you're aiming only briefly after a shot, so walking around
+	-- with the speargun out feels normal.
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-	if root and humanoid and humanoid.Health > 0 and not Dive.FirstPerson and not busy(humanoid) then
+	local aiming = os.clock() - lastFire < AIM_HOLD
+	if root and humanoid and humanoid.Health > 0 and not Dive.FirstPerson and not busy(humanoid) and aiming then
 		humanoid.AutoRotate = false
 		local flat = Vector3.new(aimPoint.X - root.Position.X, 0, aimPoint.Z - root.Position.Z)
 		if flat.Magnitude > 1 then
@@ -792,7 +796,7 @@ end
 -- Third-person arms: right arm points the gun at the target, left arm supports it.
 -- Only on land; swimming keeps the normal swim animation.
 local function onStepped()
-	if not gunTool or menuOpen or Dive.FirstPerson then
+	if not gunTool or menuOpen or Dive.FirstPerson or os.clock() - lastFire > AIM_HOLD then
 		return
 	end
 	local char = player.Character
@@ -847,11 +851,21 @@ local function fire()
 	if not loaded then
 		return
 	end
+	-- on land, snap to face the target before the shot
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	updateAim()
+	if root and not Dive.FirstPerson then
+		local flat = Vector3.new(aimPoint.X - root.Position.X, 0, aimPoint.Z - root.Position.Z)
+		if flat.Magnitude > 1 then
+			root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
+		end
+	end
+	lastFire = os.clock()
 	local origin, muzzle = shotFrom()
 	if not origin then
 		return
 	end
-	updateAim()
 	local dir = leadDirection(origin)
 	loaded = false
 	reloadStart = os.clock()
