@@ -906,9 +906,7 @@ local function fire()
 	end
 	Dive.Shake(0.12, 0.1)
 	-- camera punch
-	local fov = camera.FieldOfView
-	camera.FieldOfView = fov - 2.5
-	Kit.tween(camera, 0.25, { FieldOfView = fov })
+	Dive.Punch(-2.5)
 	if origin.Y < WATER then
 		burst(origin, 8, Color3.fromRGB(220, 245, 255), 4)
 	end

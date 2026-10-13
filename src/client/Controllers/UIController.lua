@@ -842,7 +842,7 @@ function UIController.ShowCatch(info)
 	UIController.CatchUntil = os.clock() + 3.9
 	local rarity = FishData.GetRarity(info.Id)
 	local rc = UIKit.RarityColors[rarity.Name]
-	local root = make("Frame", { Size = UDim2.fromOffset(580, 236), Position = UDim2.fromScale(0.5, 0.63), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 8, Parent = gui })
+	local root = make("Frame", { Size = UDim2.fromOffset(580, 236), Position = UDim2.fromScale(0.5, 0.6), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 8, Parent = gui })
 	local scale = make("UIScale", { Scale = 0.2, Parent = root })
 	UIKit.softShadow(root, 24, 14, 0.3)
 	local edge = UIKit.deep(rc[2], 0.5)

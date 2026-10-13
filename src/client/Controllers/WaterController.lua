@@ -1,5 +1,6 @@
 -- Animated low-poly water: a grid of flat-shaded triangles whose corners ride three
--- overlapping waves. A third of the triangles are reshaped each frame to keep it cheap.
+-- overlapping waves. The surface is reshaped every other frame, and not at all while you're
+-- deep underwater or far away (it can't be seen then).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -122,6 +123,11 @@ function WaterController.Init()
 	-- Shape every triangle once before the first frame
 	step(true)
 	RunService.RenderStepped:Connect(function()
+		-- skip the work while the surface can't be seen (deep underwater, or far away)
+		local cam = workspace.CurrentCamera.CFrame.Position
+		if cam.Y < Zones.WaterLevel - 35 or Vector3.new(cam.X, 0, cam.Z).Magnitude > HALF + 500 then
+			return
+		end
 		step(false)
 	end)
 end

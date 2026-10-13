@@ -105,7 +105,7 @@ function IntroController.Init(ui, audio)
 		Kit.list(Enum.FillDirection.Horizontal, 14, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center),
 	})
 	local chips = {}
-	for i, info in { { #Zones.List .. " DIVE ZONES", "blue" }, { creatures .. " CREATURES", "green" }, { #Zones.List .. " GUARDIANS", "red" } } do
+	for i, info in { { #Zones.List .. " DIVE ZONES", "blue" }, { creatures .. " CREATURES", "green" }, { #Zones.Guardians .. " GUARDIANS", "red" } } do
 		local sw = Kit.Swatch[info[2]]
 		local chip = make("Frame", { Size = UDim2.fromOffset(0, 40), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = i, Parent = facts }, {
 			Kit.round(), Kit.outline(3), Kit.pad(0, 18),

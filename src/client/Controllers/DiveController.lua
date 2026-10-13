@@ -33,6 +33,7 @@ local listeners = {}
 local swimVel = Vector3.zero
 local swimming = false
 local SWIM_ACCEL, SWIM_GLIDE = 7, 2.6 -- how fast you reach full speed, and how slowly you coast to a stop
+local fov = { Speed = 0, Dash = 0, Punch = 0 } -- extra field of view: swim speed, dash, kicks (spear fire)
 
 local function charParts()
 	local char = player.Character
@@ -49,11 +50,37 @@ function DiveController.OnChange(fn)
 	table.insert(listeners, fn)
 end
 
+-- A quick water-coloured wash that hides the camera cut when you go under or come up.
+local wash
+local function washScreen(color: Color3, from: number, time: number)
+	if not wash then
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "DiveWash"
+		gui.IgnoreGuiInset = true
+		gui.ResetOnSpawn = false
+		gui.DisplayOrder = 2
+		gui.Parent = player:WaitForChild("PlayerGui")
+		wash = Instance.new("Frame")
+		wash.Size = UDim2.fromScale(1, 1)
+		wash.BorderSizePixel = 0
+		wash.BackgroundTransparency = 1
+		wash.Parent = gui
+	end
+	wash.BackgroundColor3 = color
+	wash.BackgroundTransparency = from
+	TweenService:Create(wash, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+end
+
 local function setFirstPerson(on: boolean)
 	if on == DiveController.FirstPerson then
 		return
 	end
 	DiveController.FirstPerson = on
+	if on then
+		washScreen(Color3.fromRGB(40, 140, 200), 0.15, 0.5)
+	else
+		washScreen(Color3.fromRGB(215, 240, 255), 0.35, 0.4)
+	end
 	if on then
 		player.CameraMode = Enum.CameraMode.LockFirstPerson
 	else
@@ -79,6 +106,11 @@ function DiveController.Shake(strength: number, duration: number)
 	shakeUntil = math.max(shakeUntil, os.clock() + duration)
 end
 
+-- A short field-of-view kick (negative = zoom in), e.g. when firing.
+function DiveController.Punch(amount: number)
+	fov.Punch += amount
+end
+
 -- A shove (a guardian's bite): carried into the swim so it isn't cancelled out.
 function DiveController.Knock(velocity: Vector3)
 	swimVel = velocity
@@ -101,7 +133,6 @@ local function dash()
 	humanoid.WalkSpeed = dashBase * Config.Dash.Multiplier
 	root.AssemblyLinearVelocity += camera.CFrame.LookVector * dashBase * 0.9
 	swimVel += camera.CFrame.LookVector * dashBase * 0.9
-	TweenService:Create(camera, TweenInfo.new(0.15), { FieldOfView = BASE_FOV + 10 }):Play()
 	if Audio then
 		Audio.Play("Dash")
 	end
@@ -121,7 +152,6 @@ local function endDash()
 		humanoid.WalkSpeed = dashBase
 	end
 	dashBase = nil
-	TweenService:Create(camera, TweenInfo.new(0.4), { FieldOfView = BASE_FOV }):Play()
 end
 
 local function bindDash(on: boolean)
@@ -173,7 +203,8 @@ local function updateBubbles()
 			local e = att and att:FindFirstChildOfClass("ParticleEmitter")
 			if e then
 				local under = Zones.InWater(head.Position + Vector3.new(0, 0.6, 0))
-				e.Rate = if under then 3 else 0
+				local fast = if p == player and swimming then math.min(swimVel.Magnitude, 40) * 0.35 else 0
+				e.Rate = if under then 3 + fast else 0
 			end
 		end
 	end
@@ -300,6 +331,13 @@ end
 -- After the camera scripts: camera shake (chase, hits)
 local function cameraFX(dt: number)
 	local now = os.clock()
+	-- field of view: wider the faster you swim, wider still while dashing, plus kicks
+	local humanoid = charParts()
+	local speedK = if swimming and humanoid and humanoid.WalkSpeed > 0 then math.clamp(swimVel.Magnitude / humanoid.WalkSpeed, 0, 1.6) else 0
+	fov.Speed += (speedK * 5 - fov.Speed) * math.min(1, dt * 4)
+	fov.Dash += ((if DiveController.Dashing then 9 else 0) - fov.Dash) * math.min(1, dt * (if DiveController.Dashing then 10 else 3))
+	fov.Punch *= math.exp(-dt * 12)
+	camera.FieldOfView = BASE_FOV + fov.Speed + fov.Dash + fov.Punch
 	if now >= shakeUntil then
 		return
 	end
@@ -344,6 +382,7 @@ function DiveController.Init(audio)
 		DiveController.Dashing = false
 		dashBase = nil
 		camera.FieldOfView = BASE_FOV
+		fov.Speed, fov.Dash, fov.Punch = 0, 0, 0
 	end)
 end
 

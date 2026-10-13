@@ -94,8 +94,9 @@ local function run()
 	local title = Kit.fitText("", 28, C.Gold, { Size = UDim2.fromOffset(CARD_W - 250, 34), Position = UDim2.fromOffset(124, 12), TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3, Parent = face })
 	local body = text("", 19, F.Bold, C.Text, {
 		Size = UDim2.fromOffset(CARD_W - 140, 70), Position = UDim2.fromOffset(124, 52), AutomaticSize = Enum.AutomaticSize.None,
-		TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 3, Parent = face,
+		TextWrapped = true, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 3, Parent = face,
 	})
+	make("UITextSizeConstraint", { MaxTextSize = 19, MinTextSize = 12, Parent = body })
 	local dots = make("Frame", { Size = UDim2.fromOffset(0, 12), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(1, -18, 0, 22), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 3, Parent = face }, {
 		Kit.list(Enum.FillDirection.Horizontal, 6, nil, Enum.VerticalAlignment.Center),
 	})
@@ -299,6 +300,8 @@ local function run()
 		title.Text = current.Title
 		body.Text = current.Body
 		nextBtn.Visible = current.Button ~= nil
+		-- leave room for the button so the text never runs under it
+		body.Size = UDim2.fromOffset(if current.Button then CARD_W - 124 - 196 else CARD_W - 140, 70)
 		nextLabel.Text = current.Button or "NEXT"
 		body.Size = UDim2.fromOffset(if current.Button then CARD_W - 320 else CARD_W - 140, 70)
 		if badgeIcon then
