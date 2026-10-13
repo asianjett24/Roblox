@@ -58,6 +58,12 @@ local function build(i, zone)
 	local g = guardians[i]
 	local rig = CreatureModels.Build(zone.Guardian, {})
 	rig.Model.Name = zone.Guardian.Name
+	-- place it in its lair straight away (models are built around the world origin)
+	local parts, cfs = {}, {}
+	CreatureModels.Pose(rig, CFrame.new(zone.Lair + Vector3.new(0, zone.Guardian.L * 0.15, 0)), 0, 0.3, parts, cfs)
+	for k, part in parts do
+		part.CFrame = cfs[k]
+	end
 	rig.Model.Parent = folder
 	g.Rig = rig
 	g.TailRate = math.clamp(2.2 / math.sqrt(rig.L), 0.22, 0.8)
@@ -274,9 +280,12 @@ local function step(dt: number)
 					local k = os.clock() * 30
 					root *= CFrame.Angles(math.sin(k) * 0.06, math.sin(k * 0.7) * 0.12, math.sin(k * 1.3) * 0.08)
 				end
-				-- sleeping guardians far away (lost in the fog) don't need animating
+				-- sleeping guardians far away (lost in the fog) only need an occasional update,
+				-- but every guardian must be posed at least once or it sits where it was built
 				local near = (pos - camPos).Magnitude < 170
-				if near or state ~= "Sleep" then
+				g.SinceUpdate = (g.SinceUpdate or math.huge) + dt
+				if near or state ~= "Sleep" or g.SinceUpdate > 0.5 then
+					g.SinceUpdate = 0
 					CreatureModels.Pose(g.Rig, root, g.Phase, g.Swim, parts, cframes)
 				end
 				local awake = state ~= "Sleep"

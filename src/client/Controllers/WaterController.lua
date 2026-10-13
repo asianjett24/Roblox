@@ -11,14 +11,13 @@ local WaterController = {}
 
 local HALF = Zones.List[1].Half
 local CELL = 24
-local LEVEL = Zones.WaterLevel + 0.1
-local SLICES = 3
+local LEVEL = Zones.WaterLevel + 0.08 -- wave troughs stay just above Roblox's water surface
+local SLICES = 2
 
 local folder
 local verts = {} -- [i][j] = { X, Z }
 local tris = {} -- { a = {i, j}, b, c, w1, w2 }
 local heights = {}
-local slice = 0
 local N
 
 local function wave(x: number, z: number, t: number): number
@@ -43,7 +42,7 @@ local function build()
 	local base = Color3.fromRGB(46, 176, 226)
 	local function add(a, b, c)
 		local col = Poly.Shade(base, rng:NextNumber(-0.06, 0.1))
-		local props = { Color = col, Transparency = 0.3, Reflectance = 0.04 }
+		local props = { Color = col, Transparency = 0.42, Reflectance = 0.05 }
 		local w1, w2 = Poly.NewWedge(props), Poly.NewWedge(props)
 		w1.Parent, w2.Parent = folder, folder
 		table.insert(tris, { a = a, b = b, c = c, w1 = w1, w2 = w2 })
@@ -83,20 +82,26 @@ local function point(v, t)
 	return Vector3.new(x, LEVEL + heights[v[1]][v[2]], z)
 end
 
-local function step()
+-- Every other frame the whole surface is reshaped at once (updating it in pieces left
+-- thin cracks between neighbouring triangles).
+local frame = 0
+local function step(force: boolean?)
+	frame += 1
+	if not force and frame % SLICES ~= 0 then
+		return
+	end
 	local t = os.clock()
 	for i = 0, N do
 		for j = 0, N do
 			local v = verts[i][j]
 			-- keep the outer edge flat so it meets the shore cleanly
 			local edge = i == 0 or j == 0 or i == N or j == N
-			heights[i][j] = if edge then 0 else wave(v[1], v[2], t)
+			-- waves only go up (0 .. ~0.9) so the dips never sink below the real water surface
+			heights[i][j] = if edge then 0 else (wave(v[1], v[2], t) + 1.12) * 0.4
 		end
 	end
-	slice = (slice + 1) % SLICES
 	local parts, cframes = {}, {}
-	for k = slice + 1, #tris, SLICES do
-		local tr = tris[k]
+	for _, tr in tris do
 		local s1, cf1, s2, cf2 = Poly.Solve(point(tr.a), point(tr.b), point(tr.c), 0.05)
 		if s1 then
 			tr.w1.Size = s1
@@ -115,10 +120,10 @@ end
 function WaterController.Init()
 	build()
 	-- Shape every triangle once before the first frame
-	for _ = 1, SLICES do
-		step()
-	end
-	RunService.RenderStepped:Connect(step)
+	step(true)
+	RunService.RenderStepped:Connect(function()
+		step(false)
+	end)
 end
 
 return WaterController

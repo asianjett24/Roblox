@@ -94,11 +94,21 @@ local function newEntry(speciesId: string, opts)
 	}
 end
 
-local function buildRig(e)
+local function buildRig(e, at: CFrame?)
 	local rig = CreatureModels.Build(e.SpeciesId, e.Opts)
 	decorate(rig, e.Opts.Mutation)
+	-- move it into place before it's shown (models are built around the world origin)
+	local root = at or e.Root
+	if root then
+		local parts, cfs = {}, {}
+		CreatureModels.Pose(rig, root, e.Phase, e.Swim, parts, cfs)
+		for k, part in parts do
+			part.CFrame = cfs[k]
+		end
+	end
 	rig.Model.Parent = folder
 	e.Rig = rig
+	e.Skip = math.huge -- pose again this frame
 end
 
 local function destroyRig(e)
@@ -255,7 +265,8 @@ local function setCarried(player: Player)
 	local scale = math.min(sizeScale(size), CARRY_LENGTH / species.Look.L)
 	local e = newEntry(id, { Scale = scale, Mutation = if mut ~= "" then mut else nil, Simple = true })
 	e.Player = player
-	buildRig(e)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	buildRig(e, if root then root.CFrame * CFrame.new(0, 2.6, 1.6) else nil)
 	e.Born = os.clock()
 	carried[player] = e
 end
@@ -335,14 +346,15 @@ local function steer(e, pos: Vector3, vel: Vector3, dt: number)
 end
 
 local builds = 0
-local function want(e, dist)
+local function want(e, dist, pos, vel)
 	if e.Rig then
 		if dist > DROP_DISTANCE then
 			destroyRig(e)
 		end
 	elseif dist < BUILD_DISTANCE and builds < BUILDS_PER_FRAME then
 		builds += 1
-		buildRig(e)
+		local dir = if vel.Magnitude > 0.1 then vel.Unit else e.Dir
+		buildRig(e, CFrame.lookAt(pos, pos + dir))
 	end
 	return e.Rig ~= nil
 end
@@ -382,7 +394,7 @@ local function step(dt: number)
 		else
 			local pos = FishPath.Position(e.Seg, t)
 			local dist = (pos - camPos).Magnitude
-			if want(e, dist) then
+			if want(e, dist, pos, FishPath.Velocity(e.Seg, t)) then
 				-- far creatures are re-posed less often (they're hard to see in the fog anyway)
 				e.Skip = (e.Skip or 0) + dt
 				local every = if dist > 110 then 3 / 60 elseif dist > 60 then 2 / 60 else 0
@@ -439,7 +451,8 @@ local function step(dt: number)
 				destroyRig(e)
 			elseif not e.Rig and dist < TANK_DISTANCE and builds < BUILDS_PER_FRAME then
 				builds += 1
-				buildRig(e)
+				local p0 = FishPath.Position(e.Seg, now)
+				buildRig(e, CFrame.new(p0))
 			end
 			if e.Rig then
 				if now >= e.NextRepath then

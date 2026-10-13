@@ -132,17 +132,24 @@ local function findAtmosphere()
 	end
 end
 
+local surfaceLight = nil
 local function setUnder(under: boolean)
 	if under then
-		Kit.tween(blur, 0.3, { Size = 2 })
+		Kit.tween(blur, 0.3, { Size = 1 })
 		if atmosphere then
-			Kit.tween(atmosphere, 0.3, { Haze = 2, Glare = 0 })
+			Kit.tween(atmosphere, 0.3, { Haze = 1.1, Glare = 0 })
 		end
+		-- brighter ambient light underwater so creatures stay easy to see
+		surfaceLight = surfaceLight or { Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient }
+		Kit.tween(Lighting, 0.4, { Ambient = Color3.fromRGB(150, 170, 190), OutdoorAmbient = Color3.fromRGB(165, 185, 205) })
 	else
 		Kit.tween(tint, 0.4, { TintColor = Color3.new(1, 1, 1), Saturation = 0, Contrast = 0, Brightness = 0 })
 		Kit.tween(blur, 0.4, { Size = 0 })
 		if atmosphere and surfaceAtmo then
 			Kit.tween(atmosphere, 0.5, surfaceAtmo)
+		end
+		if surfaceLight then
+			Kit.tween(Lighting, 0.5, surfaceLight)
 		end
 	end
 end
@@ -190,12 +197,12 @@ local function step(dt: number)
 		local k = math.clamp((zone.Top - camPos.Y) / (zone.Top - zone.Bottom), 0, 1)
 		local fog = zone.Fog:Lerp(zone.FogDeep, k)
 		local deep = math.clamp(Zones.Depth(camPos.Y) / 1040, 0, 1)
-		tint.TintColor = fog:Lerp(Color3.new(1, 1, 1), 0.55 - deep * 0.2)
-		tint.Brightness = -0.02 - deep * 0.12
-		tint.Contrast = 0.06 + deep * 0.08
-		tint.Saturation = 0.05
+		tint.TintColor = fog:Lerp(Color3.new(1, 1, 1), 0.62 - deep * 0.2)
+		tint.Brightness = 0.02 - deep * 0.1
+		tint.Contrast = 0.08 + deep * 0.06
+		tint.Saturation = 0.12
 		if atmosphere then
-			atmosphere.Density = 0.42 + deep * 0.28
+			atmosphere.Density = 0.3 + deep * 0.24
 			atmosphere.Color = fog
 			atmosphere.Decay = fog:Lerp(Color3.new(0, 0, 0), 0.4)
 		end

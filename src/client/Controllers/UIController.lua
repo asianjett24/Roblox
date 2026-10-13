@@ -302,6 +302,10 @@ function UIController.IsPanelOpen(): boolean
 	return openName ~= nil
 end
 
+function UIController.OpenPanelName(): string?
+	return openName
+end
+
 function UIController.OnPanel(fn)
 	table.insert(panelListeners, fn)
 end
@@ -481,6 +485,7 @@ local function buildBag()
 	text("BAG VALUE", 22, F.Title, C.Text, { LayoutOrder = 1, Parent = summary })
 	local _, totalLabel = coinRow(summary, 0, 26, 2, C.Gold)
 	local sell = UIKit.button("SELL ALL", "green", { Size = UDim2.fromOffset(200, 54), Position = UDim2.new(1, -200, 0, 0), TextSize = 26, Parent = p.Footer })
+	p.SellButton = sell
 	sell.Activated:Connect(function()
 		local ok, msg = Remotes.SellAll:InvokeServer()
 		UIController.Notify(msg, if ok then "success" else "error")
@@ -826,7 +831,9 @@ local function buildStore()
 end
 
 -- Catch popup --------------------------------------------------------------------------------
+UIController.CatchUntil = 0
 function UIController.ShowCatch(info)
+	UIController.CatchUntil = os.clock() + 3.9
 	local rarity = FishData.GetRarity(info.Id)
 	local rc = UIKit.RarityColors[rarity.Name]
 	local root = make("Frame", { Size = UDim2.fromOffset(580, 236), Position = UDim2.fromScale(0.5, 0.63), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 8, Parent = gui })
@@ -892,6 +899,8 @@ function UIController.GetAnchor(name: string): GuiObject?
 		return bagPill
 	elseif navButtons[name] then
 		return navButtons[name].Button
+	elseif name == "SellAll" then
+		return panels.Bag and panels.Bag.SellButton
 	elseif panels[name] then
 		return panels[name].Root
 	end
