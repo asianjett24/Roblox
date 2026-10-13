@@ -1,17 +1,20 @@
--- Speargun: aiming, the character's aim pose and recoil, firing, the spear's flight
--- (with a line back to the gun), hit detection against fish, and the reticle.
+-- Speargun: aiming (with a little lead on moving targets), firing, the spear's flight with
+-- a line back to the gun, hit detection, the reticle, and the first-person viewmodel
+-- (gun + gloved arms, sway, recoil and a band-pulling reload) used underwater.
+-- Above water the character holds the gun in third person and turns to face the aim.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local GuiService = game:GetService("GuiService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local FishData = require(Shared.FishData)
 local FishPath = require(Shared.FishPath)
 local GunData = require(Shared.GunData)
+local GunModels = require(Shared.GunModels)
 local Remotes = require(Shared.Remotes)
+local Zones = require(Shared.Zones)
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -19,38 +22,39 @@ local camera = workspace.CurrentCamera
 
 local SpearController = {}
 
-local UI, Kit, Renderer
+local UI, Kit, Renderer, Dive, Audio
 local gunTool: Tool? = nil
 local gun = nil
 local loaded = true
 local reloadStart, reloadEnd = 0, 0
 local aimPoint = Vector3.zero
+local aimDir = Vector3.new(0, 0, -1)
 local aimFish = nil
 local recoil = 0
 local reticle = {}
+local menuOpen = false
+local toolHidden = false
 
 local spearFolder = Instance.new("Folder")
 spearFolder.Name = "ClientSpears"
 spearFolder.Parent = workspace
 
 local STEEL = Color3.fromRGB(205, 210, 220)
+local WATER = Zones.WaterLevel
 
--- Helpers ---------------------------------------------------------------------
+-- Helpers -------------------------------------------------------------------------------------
 local function worldParams()
-	local ignore = { spearFolder }
+	local ignore = { spearFolder, camera }
 	for _, p in Players:GetPlayers() do
 		if p.Character then
 			table.insert(ignore, p.Character)
 		end
 	end
-	local fishFolder = workspace:FindFirstChild("ClientFish")
-	if fishFolder then
-		table.insert(ignore, fishFolder)
-	end
-	local map = workspace:FindFirstChild("Map")
-	local water = map and map:FindFirstChild("PolyWater")
-	if water then
-		table.insert(ignore, water)
+	for _, name in { "ClientFish", "ClientGuardians", "ClientWater" } do
+		local f = workspace:FindFirstChild(name)
+		if f then
+			table.insert(ignore, f)
+		end
 	end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -59,24 +63,41 @@ local function worldParams()
 	return params
 end
 
-local function muzzleOf(char: Model?): Attachment?
+local function toolMuzzle(char: Model?): Attachment?
 	local tool = char and char:FindFirstChildOfClass("Tool")
 	local handle = tool and tool:FindFirstChild("Handle")
 	return handle and handle:FindFirstChild("Muzzle")
 end
 
-local function setLoadedVisual(visible: boolean)
+local function isCarrying(): boolean
+	local v = player:GetAttribute("Carrying")
+	return type(v) == "string" and v ~= ""
+end
+
+local function setToolHidden(hidden: boolean)
+	if not gunTool or hidden == toolHidden then
+		return
+	end
+	toolHidden = hidden
+	for _, p in gunTool:GetDescendants() do
+		if p:IsA("BasePart") then
+			p.LocalTransparencyModifier = if hidden then 1 else 0
+		end
+	end
+end
+
+local function setThirdPersonSpear(visible: boolean)
 	if not gunTool then
 		return
 	end
 	for _, p in gunTool:GetDescendants() do
 		if p:IsA("BasePart") and string.sub(p.Name, 1, 5) == "Spear" then
-			p.LocalTransparencyModifier = if visible then 0 else 1
+			p.LocalTransparencyModifier = if visible and not toolHidden then 0 else 1
 		end
 	end
 end
 
-local function splash(pos: Vector3, amount: number)
+local function burst(pos: Vector3, amount: number, color: Color3, speed: number?)
 	local holder = Instance.new("Part")
 	holder.Anchored = true
 	holder.CanCollide = false
@@ -86,23 +107,24 @@ local function splash(pos: Vector3, amount: number)
 	holder.Position = pos
 	holder.Parent = spearFolder
 	local e = Instance.new("ParticleEmitter")
-	e.Color = ColorSequence.new(Color3.fromRGB(205, 238, 255))
-	e.LightEmission = 0.3
-	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0.05) })
+	e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	e.Color = ColorSequence.new(color)
+	e.LightEmission = 0.5
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0.05) })
 	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
-	e.Lifetime = NumberRange.new(0.3, 0.6)
-	e.Speed = NumberRange.new(5, 10)
-	e.SpreadAngle = Vector2.new(50, 50)
-	e.Acceleration = Vector3.new(0, -30, 0)
+	e.Lifetime = NumberRange.new(0.3, 0.7)
+	e.Speed = NumberRange.new((speed or 8) * 0.6, speed or 8)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Drag = 4
 	e.Rate = 0
 	e.Parent = holder
 	e:Emit(amount)
-	task.delay(1, function()
+	task.delay(1.2, function()
 		holder:Destroy()
 	end)
 end
 
--- The flying spear: shaft + four-blade tip, pointing down -Z.
+-- The flying spear: shaft + four-blade tip, pointing down -Z. Its CFrame is the tip.
 local function buildSpear(gunInfo)
 	local color = if gunInfo and gunInfo.Glow then gunInfo.Trim else STEEL
 	local pieces = {}
@@ -123,7 +145,6 @@ local function buildSpear(gunInfo)
 		table.insert(pieces, { Part = p, Offset = offset })
 		return p
 	end
-	-- The spear's CFrame is its tip; everything sits behind it (+Z).
 	local shaft = piece("Part", Vector3.new(5.3, 0.1, 0.1), CFrame.new(0, 0, 3.2) * CFrame.Angles(0, math.rad(90), 0), Enum.PartType.Cylinder)
 	local tz = 0.275
 	piece("WedgePart", Vector3.new(0.04, 0.16, 0.55), CFrame.new(0, 0.08, tz))
@@ -131,9 +152,20 @@ local function buildSpear(gunInfo)
 	piece("WedgePart", Vector3.new(0.04, 0.16, 0.55), CFrame.new(0.08, 0, tz) * CFrame.Angles(0, 0, math.rad(-90)))
 	piece("WedgePart", Vector3.new(0.04, 0.16, 0.55), CFrame.new(-0.08, 0, tz) * CFrame.Angles(0, 0, math.rad(90)))
 	local tail = Instance.new("Attachment")
-	tail.Position = Vector3.new(-2.65, 0, 0) -- the shaft cylinder runs along its X axis; -X is the back end
+	tail.Position = Vector3.new(-2.65, 0, 0) -- the cylinder runs along its X axis; -X is the back end
 	tail.Parent = shaft
-	return pieces, tail
+	-- bubble trail
+	local trail = Instance.new("ParticleEmitter")
+	trail.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	trail.Color = ColorSequence.new(Color3.fromRGB(220, 245, 255))
+	trail.Size = NumberSequence.new(0.12, 0.25)
+	trail.Transparency = NumberSequence.new(0.3, 1)
+	trail.Lifetime = NumberRange.new(0.4, 0.8)
+	trail.Speed = NumberRange.new(0.5, 1.5)
+	trail.Rate = 40
+	trail.Acceleration = Vector3.new(0, 3, 0)
+	trail.Parent = tail
+	return pieces, tail, trail
 end
 
 local function placeSpear(pieces, cf: CFrame)
@@ -147,10 +179,9 @@ end
 
 -- Fires a spear. mine = this player's own shot (does hit detection and tells the server).
 local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muzzle: Attachment?)
-	local pieces, tail = buildSpear(gunInfo)
-	local line
+	local pieces, tail, trail = buildSpear(gunInfo)
 	if muzzle then
-		line = Instance.new("Beam")
+		local line = Instance.new("Beam")
 		line.Attachment0 = muzzle
 		line.Attachment1 = tail
 		line.Width0 = 0.04
@@ -173,19 +204,19 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 	conn = RunService.RenderStepped:Connect(function(dt)
 		dt = math.min(dt, 0.1)
 		if state == "flying" then
-			local speed = if pos.Y < Config.WaterLevel then Config.SpearSpeedWater else Config.SpearSpeed
+			local speed = if pos.Y < WATER then Config.SpearSpeedWater else Config.SpearSpeed
 			local stepLen = math.min(speed * dt, range - traveled)
 			local nextPos = pos + dir * stepLen
-			if pos.Y >= Config.WaterLevel and nextPos.Y < Config.WaterLevel then
-				local a = (pos.Y - Config.WaterLevel) / math.max(pos.Y - nextPos.Y, 1e-3)
-				splash(pos:Lerp(nextPos, a), 10)
+			if pos.Y >= WATER and nextPos.Y < WATER then
+				local a = (pos.Y - WATER) / math.max(pos.Y - nextPos.Y, 1e-3)
+				burst(pos:Lerp(nextPos, a), 12, Color3.fromRGB(210, 240, 255), 10)
 			end
 			local wall = workspace:Raycast(pos, nextPos - pos, params)
 			local wallDist = if wall then (wall.Position - pos).Magnitude else math.huge
 			local best, bestDist = nil, wallDist
 			for _, target in Renderer.GetTargets() do
 				local d, s = FishPath.SegmentDistance(pos, nextPos, target.Head, target.Tail)
-				if d <= target.Radius + 0.35 and s * stepLen < bestDist then
+				if d <= target.Radius + 0.45 and s * stepLen < bestDist then
 					best, bestDist = target, s * stepLen
 				end
 			end
@@ -197,6 +228,9 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 					stuckId, stuckOffset = best.Id, root:ToObjectSpace(spearCF * CFrame.new(0, 0, -0.6))
 				end
 				state, timer = "stuck", 0
+				trail.Enabled = false
+				local rarity = FishData.GetRarity(best.Entry.SpeciesId)
+				burst(at, 16, rarity.Color:Lerp(Color3.new(1, 1, 1), 0.3), 12)
 				if mine then
 					Remotes.SpearHit:FireServer(best.Id, workspace:GetServerTimeNow())
 					SpearController.OnHit(best)
@@ -204,6 +238,8 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 			elseif wall then
 				spearCF = CFrame.lookAt(wall.Position, wall.Position + dir) * CFrame.new(0, 0, -0.4)
 				state, timer = "stuck", 0
+				trail.Enabled = false
+				burst(wall.Position, 6, Color3.fromRGB(200, 190, 170), 5)
 			else
 				pos = nextPos
 				traveled += stepLen
@@ -220,7 +256,7 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 					spearCF = root * stuckOffset
 				end
 			end
-			if timer > 0.7 then
+			if timer > 0.6 then
 				state, timer, retractFrom = "retract", 0, spearCF.Position
 			end
 		else
@@ -242,50 +278,242 @@ local function launch(origin: Vector3, dir: Vector3, gunInfo, mine: boolean, muz
 	placeSpear(pieces, spearCF)
 end
 
--- Reticle -----------------------------------------------------------------------------
+-- First-person viewmodel ------------------------------------------------------------------------
+local VM_SCALE = 0.72
+local SUIT = Color3.fromRGB(30, 34, 48)
+local GLOVE = Color3.fromRGB(46, 52, 70)
+local CUFF = Color3.fromRGB(40, 200, 255)
+
+local vm = nil -- { Model, Gun, Muzzle, Spears, R = {forearm, hand, cuff}, L = {...} }
+local vmState = { Raise = 0, SwayX = 0, SwayY = 0, Bob = 0, LastLook = nil }
+
+local function vmPart(parent, size, color, material)
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Size = size
+	p.Color = color
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = parent
+	return p
+end
+
+local function destroyViewmodel()
+	if vm then
+		vm.Model:Destroy()
+		vm = nil
+	end
+end
+
+local function buildViewmodel(gunInfo)
+	destroyViewmodel()
+	local model = Instance.new("Model")
+	model.Name = "Viewmodel"
+	local g = GunModels.Build(gunInfo, false)
+	g.Parent = model
+	pcall(function()
+		g:ScaleTo(VM_SCALE)
+	end)
+	local spears = {}
+	for _, p in g:GetDescendants() do
+		if p:IsA("BasePart") then
+			p.CastShadow = false
+			if string.sub(p.Name, 1, 5) == "Spear" then
+				table.insert(spears, p)
+			end
+		end
+	end
+	local function arm()
+		return {
+			Forearm = vmPart(model, Vector3.new(0.5, 0.5, 2), SUIT),
+			Cuff = vmPart(model, Vector3.new(0.56, 0.56, 0.16), CUFF, Enum.Material.Neon),
+			Hand = vmPart(model, Vector3.new(0.4, 0.46, 0.5), GLOVE),
+			Thumb = vmPart(model, Vector3.new(0.16, 0.16, 0.32), GLOVE),
+		}
+	end
+	vm = {
+		Model = model,
+		Gun = g,
+		Muzzle = g.Handle:FindFirstChild("Muzzle"),
+		Spears = spears,
+		R = arm(),
+		L = arm(),
+		SpearShown = true,
+	}
+	vmState.Raise = 0
+end
+
+local function setVmSpear(visible: boolean)
+	if vm and vm.SpearShown ~= visible then
+		vm.SpearShown = visible
+		for _, p in vm.Spears do
+			p.LocalTransparencyModifier = if visible then 0 else 1
+		end
+	end
+end
+
+-- Places a forearm from elbow to wrist, then the hand and cuff.
+local function poseArm(a, wrist: Vector3, elbow: Vector3, handCF: CFrame, parts, cfs)
+	local len = (wrist - elbow).Magnitude
+	a.Forearm.Size = Vector3.new(0.5, 0.5, len)
+	local fore = CFrame.lookAt((wrist + elbow) / 2, wrist)
+	table.insert(parts, a.Forearm)
+	table.insert(cfs, fore)
+	table.insert(parts, a.Cuff)
+	table.insert(cfs, fore * CFrame.new(0, 0, -len / 2 + 0.12))
+	table.insert(parts, a.Hand)
+	table.insert(cfs, handCF)
+	table.insert(parts, a.Thumb)
+	table.insert(cfs, handCF * CFrame.new(-0.2, 0.12, -0.18) * CFrame.Angles(0, 0.4, 0))
+end
+
+local function reloadProgress(): number
+	if loaded then
+		return 1
+	end
+	return math.clamp((os.clock() - reloadStart) / math.max(reloadEnd - reloadStart, 0.01), 0, 1)
+end
+
+local function updateViewmodel(dt: number)
+	if not vm then
+		return
+	end
+	local show = Dive.FirstPerson and gunTool ~= nil
+	if not show then
+		if vm.Model.Parent then
+			vm.Model.Parent = nil
+		end
+		vmState.Raise = 0
+		return
+	end
+	if not vm.Model.Parent then
+		vm.Model.Parent = camera
+	end
+	local cam = camera.CFrame
+	-- sway: the gun lags behind camera turns
+	local look = cam.LookVector
+	local last = vmState.LastLook or look
+	vmState.LastLook = look
+	local d = cam:VectorToObjectSpace(last)
+	local k = 1 / math.max(dt, 1 / 240) * 0.012
+	vmState.SwayX += (math.clamp(d.X * k, -0.25, 0.25) - vmState.SwayX) * math.min(1, dt * 9)
+	vmState.SwayY += (math.clamp(d.Y * k, -0.2, 0.2) - vmState.SwayY) * math.min(1, dt * 9)
+	-- bob while swimming, slow breathing when still
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local speed = if root then root.AssemblyLinearVelocity.Magnitude else 0
+	vmState.Bob += dt * (1.6 + speed * 0.32)
+	local bobAmp = 0.015 + math.min(speed / 20, 1.4) * 0.04
+	vmState.Raise = math.min(1, vmState.Raise + dt * 4)
+	local raise = 1 - (1 - vmState.Raise) ^ 3
+	local kick = recoil * recoil
+
+	local gripCF = cam
+		* CFrame.new(vmState.SwayX * 0.6, vmState.SwayY * 0.6, 0)
+		* CFrame.new(0.95, -1.08 - (1 - raise) * 1.4 + math.sin(vmState.Bob) * bobAmp, -1.85 + kick * 0.45)
+		* CFrame.Angles(math.rad(1.5) + kick * 0.2 + vmState.SwayY * 0.4, math.rad(2.5) - vmState.SwayX * 0.5, math.cos(vmState.Bob * 0.5) * bobAmp * 0.6 - vmState.SwayX * 0.3)
+	vm.Gun:PivotTo(gripCF)
+
+	local parts, cfs = {}, {}
+	local s = VM_SCALE
+	-- right hand wraps the pistol grip
+	local rHand = gripCF * CFrame.new(0.06, -0.02, 0.02)
+	poseArm(vm.R, (rHand * CFrame.new(0.05, -0.1, 0.35)).Position, (cam * CFrame.new(1.55, -2.4, -0.2)).Position, rHand, parts, cfs)
+	-- left hand: under the barrel, or pulling the bands back while reloading
+	local p = reloadProgress()
+	local support = Vector3.new(0, 0.12 * s, -1.75 * s)
+	local front = Vector3.new(0, 0.95 * s, -3.75 * s)
+	local notch = Vector3.new(0, 1.05 * s, -1.25 * s)
+	local lLocal
+	if p < 0.3 then
+		lLocal = support:Lerp(front, math.sin(p / 0.3 * math.pi / 2))
+	elseif p < 0.75 then
+		local a = (p - 0.3) / 0.45
+		lLocal = front:Lerp(notch, a * a * (3 - 2 * a))
+	else
+		lLocal = notch:Lerp(support, (p - 0.75) / 0.25)
+	end
+	setVmSpear(p >= 0.72)
+	local lHand = gripCF * CFrame.new(lLocal) * CFrame.Angles(0, 0, math.rad(-90))
+	poseArm(vm.L, (lHand * CFrame.new(0.3, 0, 0.3)).Position, (cam * CFrame.new(-1.1, -2.5, -0.3)).Position, lHand, parts, cfs)
+	workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+end
+
+-- Reticle ------------------------------------------------------------------------------------------
 local function buildReticle()
 	local C, F, make, text = Kit.Color, Kit.Font, Kit.make, Kit.text
-	local gui = make("ScreenGui", { Name = "Reticle", IgnoreGuiInset = true, DisplayOrder = 10, ResetOnSpawn = false, Enabled = false, Parent = player:WaitForChild("PlayerGui") })
-	local root = make("Frame", { Size = UDim2.fromOffset(44, 44), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Parent = gui })
+	local gui = make("ScreenGui", { Name = "Reticle", IgnoreGuiInset = true, DisplayOrder = 4, ResetOnSpawn = false, Enabled = false, Parent = player:WaitForChild("PlayerGui") })
+	local root = make("Frame", { Size = UDim2.fromOffset(48, 48), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Parent = gui })
+	local scale = make("UIScale", { Parent = root })
 	local ring = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = root }, { Kit.round() })
-	local ringStroke = make("UIStroke", { Color = C.Text, Thickness = 2, Transparency = 0.15, Parent = ring })
-	make("Frame", { Size = UDim2.fromOffset(4, 4), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Text, Parent = root }, { Kit.round() })
+	make("UIStroke", { Color = C.Ink, Thickness = 5, Transparency = 0.35, Parent = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = root }, { Kit.round() }) })
+	local ringStroke = make("UIStroke", { Color = C.Text, Thickness = 2.5, Parent = ring })
+	make("Frame", { Size = UDim2.fromOffset(6, 6), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Text, Parent = root }, { Kit.round(), Kit.outline(1.5) })
+	local ticks = {}
 	for i = 0, 3 do
 		local horizontal = i % 2 == 0
 		local sign = if i < 2 then -1 else 1
-		make("Frame", {
-			Size = if horizontal then UDim2.fromOffset(8, 2) else UDim2.fromOffset(2, 8),
-			Position = UDim2.new(0.5, if horizontal then sign * 30 else 0, 0.5, if horizontal then 0 else sign * 30),
+		ticks[i] = make("Frame", {
+			Size = if horizontal then UDim2.fromOffset(10, 3) else UDim2.fromOffset(3, 10),
+			Position = UDim2.new(0.5, if horizontal then sign * 34 else 0, 0.5, if horizontal then 0 else sign * 34),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			BackgroundColor3 = C.Text,
 			BorderSizePixel = 0,
 			Parent = root,
-		})
+		}, { Kit.outline(1) })
 	end
-	local hitmark = make("Frame", { Size = UDim2.fromOffset(30, 30), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Visible = false, Parent = root })
-	Kit.icon("close", 30, C.Gold, { Parent = hitmark })
-	local reloadBar = make("Frame", { Size = UDim2.fromOffset(40, 4), Position = UDim2.new(0.5, 0, 1, 10), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.3, Parent = root }, { Kit.round() })
+	local hitmark = make("Frame", { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Visible = false, Parent = root })
+	Kit.icon("close", 34, C.Gold, { Parent = hitmark })
+	local reloadBar = make("Frame", { Size = UDim2.fromOffset(46, 7), Position = UDim2.new(0.5, 0, 1, 12), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.2, Parent = root }, { Kit.round(), Kit.outline(1.5) })
 	local reloadFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = C.Accent, Parent = reloadBar }, { Kit.round() })
-	local info = make("Frame", { Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 1, 22), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.2, Visible = false, Parent = root }, {
-		Kit.round(), Kit.pad(0, 10), Kit.list(Enum.FillDirection.Horizontal, 6, nil, Enum.VerticalAlignment.Center),
+	local info = make("Frame", { Size = UDim2.fromOffset(0, 30), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 1, 26), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, Parent = root }, {
+		Kit.round(), Kit.pad(0, 12), Kit.outline(2.5), Kit.list(Enum.FillDirection.Horizontal, 6, nil, Enum.VerticalAlignment.Center),
 	})
-	local infoName = text("", 13, F.Black, C.Text, { LayoutOrder = 1, Parent = info })
-	local infoHP = text("", 12, F.Black, C.Danger, { LayoutOrder = 2, Parent = info })
-	reticle = { Gui = gui, Root = root, Stroke = ringStroke, Hit = hitmark, ReloadBar = reloadBar, ReloadFill = reloadFill, Info = info, InfoName = infoName, InfoHP = infoHP }
+	local infoGrad = make("UIGradient", { Rotation = 90, Parent = info })
+	local infoName = text("", 16, F.Title, C.Text, { LayoutOrder = 1, Parent = info })
+	local pips = make("Frame", { Size = UDim2.fromOffset(0, 12), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1, LayoutOrder = 2, Parent = info }, {
+		Kit.list(Enum.FillDirection.Horizontal, 3, nil, Enum.VerticalAlignment.Center),
+	})
+	local pipList = {}
+	for i = 1, 6 do
+		pipList[i] = make("Frame", { Size = UDim2.fromOffset(10, 10), BackgroundColor3 = C.Danger, LayoutOrder = i, Parent = pips }, { Kit.round(), Kit.outline(1.5) })
+	end
+	local blocked = make("Frame", { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Visible = false, Parent = root })
+	Kit.icon("depth", 40, C.Gold, { Rotation = 180, Parent = blocked })
+	reticle = {
+		Gui = gui, Root = root, Scale = scale, Ring = ring, Stroke = ringStroke, Ticks = ticks, Hit = hitmark, Blocked = blocked,
+		ReloadBar = reloadBar, ReloadFill = reloadFill, Info = info, InfoGrad = infoGrad, InfoName = infoName, Pips = pipList,
+	}
 end
 
 function SpearController.OnHit(target)
 	reticle.Hit.Visible = true
-	reticle.Hit.Rotation = 0
-	Kit.tween(reticle.Hit, 0.25, { Rotation = 90 })
-	task.delay(0.25, function()
+	reticle.Hit.Rotation = -30
+	reticle.Scale.Scale = 1.5
+	Kit.tween(reticle.Scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	Kit.tween(reticle.Hit, 0.25, { Rotation = 0 }, Enum.EasingStyle.Back)
+	task.delay(0.3, function()
 		reticle.Hit.Visible = false
 	end)
+	if Audio then
+		Audio.Play("Hit")
+	end
+	Dive.Shake(0.25, 0.15)
 end
 
--- Aiming and pose -------------------------------------------------------------------------
+-- Aiming ----------------------------------------------------------------------------------------------
 local function updateAim()
-	local ray = camera:ScreenPointToRay(mouse.X, mouse.Y)
+	local ray
+	if Dive.FirstPerson then
+		local vp = camera.ViewportSize
+		ray = camera:ViewportPointToRay(vp.X / 2, vp.Y / 2)
+	else
+		ray = camera:ScreenPointToRay(mouse.X, mouse.Y)
+	end
 	local far = 500
 	local wall = workspace:Raycast(ray.Origin, ray.Direction * far, worldParams())
 	local wallDist = if wall then (wall.Position - ray.Origin).Magnitude else far
@@ -293,89 +521,152 @@ local function updateAim()
 	local bestDist = wallDist
 	for _, target in Renderer.GetTargets() do
 		local d, s = FishPath.SegmentDistance(ray.Origin, ray.Origin + ray.Direction * far, target.Head, target.Tail)
-		if d <= target.Radius + 0.8 and s * far < bestDist then
+		local slack = 0.8 + s * far * 0.012 -- a little more forgiving further away
+		if d <= target.Radius + slack and s * far < bestDist then
 			aimFish, bestDist = target, s * far
 		end
 	end
 	aimPoint = ray.Origin + ray.Direction * bestDist
+	aimDir = ray.Direction
+end
+
+-- Where to shoot from, and the direction, leading a moving target a little.
+local function shotFrom(): (Vector3?, Attachment?)
+	if Dive.FirstPerson and vm and vm.Muzzle then
+		return vm.Muzzle.WorldPosition, vm.Muzzle
+	end
+	local m = toolMuzzle(player.Character)
+	if m then
+		return m.WorldPosition, m
+	end
+	return nil, nil
+end
+
+local function leadDirection(origin: Vector3): Vector3
+	local target = aimPoint
+	if aimFish and aimFish.Entry and aimFish.Entry.Seg then
+		local e = aimFish.Entry
+		local now = workspace:GetServerTimeNow()
+		local mid = (aimFish.Head + aimFish.Tail) / 2
+		local travel = (mid - origin).Magnitude / Config.SpearSpeedWater
+		local future = FishPath.Position(e.Seg, now + travel) - FishPath.Position(e.Seg, now)
+		-- keep the point the player actually aimed at on the body, moved forward in time
+		local onBody = aimPoint
+		target = onBody + future
+	end
+	local dir = target - origin
+	if dir.Magnitude < 2 then
+		dir = aimDir
+	end
+	return dir.Unit
 end
 
 local function updateHint()
-	if not UI then
+	if not UI or SpearController.HintLocked then
 		return
 	end
-	if not gunTool then
-		UI.SetHint("Press 1 to hold your speargun")
-	elseif camera.CFrame.Position.Y > Config.WaterLevel then
-		UI.SetHint("Dive into the pond and click a fish to fire")
+	local inWater = Dive.Underwater
+	if isCarrying() then
+		UI.SetHint(if inWater then "SWIM UP! Get out of the water to bank your catch!" else nil)
+	elseif not gunTool then
+		UI.SetHint(if UserInputService.TouchEnabled then "Tap the speargun below to hold it" else "Press 1 to hold your speargun")
+	elseif not inWater and not Dive.FirstPerson then
+		UI.SetHint("Jump in the water and dive down to hunt!")
 	else
 		UI.SetHint(nil)
 	end
 end
 
-local menuOpen = false
-
 local function busy(humanoid: Humanoid): boolean
 	local state = humanoid:GetState()
 	return humanoid.Sit or state == Enum.HumanoidStateType.Climbing or state == Enum.HumanoidStateType.Dead
+		or state == Enum.HumanoidStateType.Swimming
 end
 
 local function onRender(dt: number)
+	updateHint()
+	updateViewmodel(dt)
+	setToolHidden(Dive.FirstPerson and gunTool ~= nil)
 	if not gunTool then
 		reticle.Gui.Enabled = false
-		updateHint()
 		return
 	end
-	-- With a menu open, give the normal cursor back and pause aiming.
 	menuOpen = UI.IsPanelOpen()
-	UserInputService.MouseIconEnabled = menuOpen
 	if menuOpen then
 		reticle.Gui.Enabled = false
+		UserInputService.MouseIconEnabled = true
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.AutoRotate = true
+		end
 		return
 	end
+	UserInputService.MouseIconEnabled = false
 	updateAim()
-	updateHint()
 	local C = Kit.Color
 	reticle.Gui.Enabled = true
-	reticle.Root.Position = UDim2.fromOffset(mouse.X, mouse.Y + GuiService:GetGuiInset().Y)
+	if Dive.FirstPerson then
+		local vp = camera.ViewportSize
+		reticle.Root.Position = UDim2.fromOffset(vp.X / 2, vp.Y / 2)
+	else
+		reticle.Root.Position = UDim2.fromOffset(mouse.X, mouse.Y + game:GetService("GuiService"):GetGuiInset().Y)
+	end
 	local now = os.clock()
-	local progress = if loaded then 1 else math.clamp((now - reloadStart) / math.max(reloadEnd - reloadStart, 0.01), 0, 1)
+	local progress = reloadProgress()
 	reticle.ReloadBar.Visible = not loaded
 	reticle.ReloadFill.Size = UDim2.fromScale(progress, 1)
-	if aimFish and aimFish.Entry then
+	local carrying = isCarrying()
+	reticle.Blocked.Visible = carrying
+	reticle.Ring.Visible = not carrying
+	if aimFish and aimFish.Entry and not carrying then
 		local e = aimFish.Entry
-		local rarity = FishData.GetRarity(e.Species.Id)
-		reticle.Stroke.Color = rarity.Color
+		local rarity = FishData.GetRarity(e.SpeciesId)
+		reticle.Stroke.Color = rarity.Color:Lerp(Color3.new(1, 1, 1), 0.2)
 		reticle.Info.Visible = true
-		reticle.InfoName.Text = e.Species.Id
-		reticle.InfoName.TextColor3 = rarity.Color:Lerp(Color3.new(1, 1, 1), 0.35)
-		reticle.InfoHP.Text = string.rep("●", math.max(e.HP or 1, 0)) .. string.rep("○", math.max((e.MaxHP or 1) - (e.HP or 1), 0))
+		reticle.InfoName.Text = FishData.FullName(e.SpeciesId, e.Size, e.Mut)
+		reticle.InfoGrad.Color = ColorSequence.new(rarity.Color:Lerp(Color3.new(1, 1, 1), 0.1), rarity.Color:Lerp(Color3.new(0, 0, 0), 0.25))
+		for i, pip in reticle.Pips do
+			pip.Visible = i <= (e.MaxHP or 1)
+			pip.BackgroundColor3 = if i <= (e.HP or 1) then C.Danger else C.Ink
+		end
+		for _, t in reticle.Ticks do
+			t.BackgroundColor3 = rarity.Color
+		end
 	else
 		reticle.Stroke.Color = C.Text
 		reticle.Info.Visible = false
+		for _, t in reticle.Ticks do
+			t.BackgroundColor3 = C.Text
+		end
 	end
 	if not loaded and now >= reloadEnd then
 		loaded = true
-		setLoadedVisual(true)
+		setThirdPersonSpear(true)
+		if Audio then
+			Audio.Play("Reload")
+		end
 	end
-	recoil = math.max(0, recoil - dt * 6)
+	recoil = math.max(0, recoil - dt * 5)
 
-	-- Face where you're aiming (like shift-lock) so the gun points at the target.
+	-- On land, turn to face where you're aiming so the gun points at it.
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-	if root and humanoid and humanoid.Health > 0 and not busy(humanoid) then
+	if root and humanoid and humanoid.Health > 0 and not Dive.FirstPerson and not busy(humanoid) then
+		humanoid.AutoRotate = false
 		local flat = Vector3.new(aimPoint.X - root.Position.X, 0, aimPoint.Z - root.Position.Z)
 		if flat.Magnitude > 1 then
 			root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
 		end
+	elseif humanoid then
+		humanoid.AutoRotate = true
 	end
 end
 
--- Arms: right arm points the gun at the target, left arm supports it (or pulls the
--- bands back while reloading), with a kick on every shot. Runs after animations.
+-- Third-person arms: right arm points the gun at the target, left arm supports it.
+-- Only on land; swimming keeps the normal swim animation.
 local function onStepped()
-	if not gunTool or menuOpen then
+	if not gunTool or menuOpen or Dive.FirstPerson then
 		return
 	end
 	local char = player.Character
@@ -402,8 +693,7 @@ local function onStepped()
 	rs.Transform = CFrame.Angles(math.rad(90) + pitch + kick, 0, 0)
 	local pull = 0
 	if not loaded then
-		local p = math.clamp((os.clock() - reloadStart) / math.max(reloadEnd - reloadStart, 0.01), 0, 1)
-		pull = math.sin(p * math.pi)
+		pull = math.sin(reloadProgress() * math.pi)
 	end
 	ls.Transform = CFrame.Angles(0, math.rad(-38) - pull * 0.5, 0) * CFrame.Angles(math.rad(80) + pitch * 0.9 + kick * 0.6 - pull * 0.5, 0, 0)
 	local re = char:FindFirstChild("RightLowerArm") and char.RightLowerArm:FindFirstChild("RightElbow")
@@ -416,32 +706,46 @@ local function onStepped()
 	end
 end
 
--- Firing -------------------------------------------------------------------------------------
+-- Firing ------------------------------------------------------------------------------------------------
 local function fire()
-	if not gunTool or not gun or not loaded then
+	if not gunTool or not gun or menuOpen then
 		return
 	end
-	local muzzle = muzzleOf(player.Character)
-	if not muzzle then
+	if isCarrying() then
+		UI.Notify("You're carrying a catch! Swim up to bank it first.", "error")
+		if Audio then
+			Audio.Play("Error")
+		end
 		return
 	end
-	local origin = muzzle.WorldPosition
-	local dir = aimPoint - origin
-	if dir.Magnitude < 2 then
-		dir = camera.CFrame.LookVector
+	if not loaded then
+		return
 	end
-	dir = dir.Unit
+	local origin, muzzle = shotFrom()
+	if not origin then
+		return
+	end
+	updateAim()
+	local dir = leadDirection(origin)
 	loaded = false
 	reloadStart = os.clock()
 	reloadEnd = reloadStart + gun.Reload
 	recoil = 1
-	setLoadedVisual(false)
+	setThirdPersonSpear(false)
+	setVmSpear(false)
 	Remotes.Shoot:FireServer(origin, dir)
 	launch(origin, dir, gun, true, muzzle)
-	-- small camera punch
+	if Audio then
+		Audio.Play("Fire")
+	end
+	Dive.Shake(0.12, 0.1)
+	-- camera punch
 	local fov = camera.FieldOfView
-	camera.FieldOfView = fov - 3
+	camera.FieldOfView = fov - 2.5
 	Kit.tween(camera, 0.25, { FieldOfView = fov })
+	if origin.Y < WATER then
+		burst(origin, 8, Color3.fromRGB(220, 245, 255), 4)
+	end
 end
 
 local function bindTool(tool: Tool)
@@ -451,17 +755,18 @@ local function bindTool(tool: Tool)
 	tool:SetAttribute("Bound", true)
 	tool.Equipped:Connect(function()
 		gunTool = tool
+		toolHidden = false
 		gun = GunData.ById[tool:GetAttribute("GunId")]
-		UserInputService.MouseIconEnabled = false
-		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			humanoid.AutoRotate = false
-		end
-		setLoadedVisual(loaded)
+		buildViewmodel(gun)
+		setThirdPersonSpear(loaded)
+		setVmSpear(loaded)
 	end)
 	tool.Unequipped:Connect(function()
 		if gunTool == tool then
+			setToolHidden(false)
 			gunTool, gun = nil, nil
+			toolHidden = false
+			destroyViewmodel()
 			UserInputService.MouseIconEnabled = true
 			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 			if humanoid then
@@ -475,6 +780,8 @@ end
 local function onCharacter(char: Model)
 	gunTool, gun = nil, nil
 	loaded = true
+	toolHidden = false
+	destroyViewmodel()
 	UserInputService.MouseIconEnabled = true
 	char.ChildAdded:Connect(function(c)
 		if c:IsA("Tool") then
@@ -494,10 +801,16 @@ local function onCharacter(char: Model)
 	end
 end
 
-function SpearController.Init(uiController, renderer)
+function SpearController.HasGun(): boolean
+	return gunTool ~= nil
+end
+
+function SpearController.Init(uiController, renderer, dive, audio)
 	UI = uiController
 	Kit = uiController.Kit
 	Renderer = renderer
+	Dive = dive
+	Audio = audio
 	buildReticle()
 	player.CharacterAdded:Connect(onCharacter)
 	if player.Character then
@@ -509,12 +822,7 @@ function SpearController.Init(uiController, renderer)
 		if shooter == player then
 			return
 		end
-		launch(origin, dir, GunData.ById[gunId], false, muzzleOf(shooter.Character))
-	end)
-	Remotes.CatchResult.OnClientEvent:Connect(function(success, info)
-		if success then
-			UI.ShowCatch(info)
-		end
+		launch(origin, dir, GunData.ById[gunId], false, toolMuzzle(shooter.Character))
 	end)
 end
 

@@ -1,150 +1,275 @@
--- What diving looks like: a blue tint and fog that get darker with depth, bubbles from your
--- head, a splash when you enter, and the air + depth meter.
+-- What diving looks and feels like: each zone has its own fog colour that gets darker with
+-- depth, a headlamp switches on in the deep, a banner announces each new zone, and the
+-- dive HUD shows air, depth, the zone's guardian and the dash charge.
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Config = require(Shared.Config)
-local FishPath = require(Shared.FishPath)
+local Zones = require(Shared.Zones)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local UnderwaterController = {}
 
-local Kit
+local UI, Kit, Dive, Guardians, Audio
 local tint, blur
 local atmosphere, surfaceAtmo
 local wasUnder = false
+local lastZone = nil
 local hud = {}
-local bubbles
+local lamp
+local lowAirTick = 0
+local lastHeadY = nil
 
-local function underwater(pos: Vector3)
-	return pos.Y < Config.WaterLevel - 0.2 and math.abs(pos.X) < Config.PondHalf and math.abs(pos.Z) < Config.PondHalf
+local function camUnder(pos: Vector3)
+	return Zones.InWater(pos + Vector3.new(0, 0.2, 0))
+end
+
+-- HUD -----------------------------------------------------------------------------------------------
+local function pill(parent, size, pos, anchor)
+	local make = Kit.make
+	local holder = make("Frame", { Size = size, Position = pos, AnchorPoint = anchor, BackgroundTransparency = 1, Parent = parent })
+	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 5), BackgroundColor3 = Kit.Color.Ink, BackgroundTransparency = 0.3, Parent = holder }, { Kit.corner(18) })
+	local face = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = holder }, {
+		Kit.corner(18),
+		make("UIGradient", { Color = ColorSequence.new(Kit.Swatch.navy[1], Kit.Swatch.navy[2]), Rotation = 90 }),
+		Kit.outline(3),
+	})
+	return holder, face
 end
 
 local function buildHud(gui)
 	local C, F, make, text = Kit.Color, Kit.Font, Kit.make, Kit.text
-	local holder = make("Frame", {
-		Size = UDim2.fromOffset(360, 74),
-		Position = UDim2.new(0.5, 0, 1, -104),
-		AnchorPoint = Vector2.new(0.5, 1),
-		BackgroundTransparency = 1,
-		Visible = false,
-		Parent = gui,
-	})
-	Kit.shadow(holder, 18, 3, 0)
-	local card = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Panel, BackgroundTransparency = 0.08, ZIndex = 1, Parent = holder }, {
-		Kit.corner(18),
-		Kit.stroke(Color3.new(1, 1, 1), 1, 0.88),
-	})
-	-- Depth block
-	local depthBox = make("Frame", { Size = UDim2.fromOffset(96, 54), Position = UDim2.fromOffset(10, 10), BackgroundColor3 = C.PanelLo, Parent = card }, { Kit.corner(12) })
-	Kit.icon("depth", 16, C.Accent, { Position = UDim2.fromOffset(8, 8), Parent = depthBox })
-	local depth = text("0m", 22, F.Black, C.Text, { Position = UDim2.fromOffset(28, 3), Parent = depthBox })
-	local zone = text("", 11, F.Bold, C.Sub, { Position = UDim2.fromOffset(9, 33), Size = UDim2.new(1, -14, 0, 14), AutomaticSize = Enum.AutomaticSize.None, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = depthBox })
-	-- Air block
-	Kit.icon("bubbles", 18, C.Accent, { Position = UDim2.fromOffset(118, 14), Parent = card })
-	text("AIR", 13, F.Black, C.Sub, { Position = UDim2.fromOffset(142, 14), Parent = card })
-	local seconds = text("", 15, F.Black, C.Text, { Position = UDim2.new(1, -16, 0, 12), AnchorPoint = Vector2.new(1, 0), Parent = card })
-	local track = make("Frame", { Size = UDim2.new(1, -134, 0, 14), Position = UDim2.fromOffset(118, 42), BackgroundColor3 = C.PanelLo, Parent = card }, { Kit.round() })
+	local root = make("Frame", { Size = UDim2.fromOffset(560, 96), Position = UDim2.new(0.5, 0, 1, -104), AnchorPoint = Vector2.new(0.5, 1), BackgroundTransparency = 1, Visible = false, Parent = gui })
+	local scale = make("UIScale", { Parent = root })
+
+	-- depth + zone (left)
+	local _, depthFace = pill(root, UDim2.fromOffset(150, 84), UDim2.fromOffset(0, 0))
+	Kit.icon("depth", 26, C.Accent, { Position = UDim2.fromOffset(10, 10), Parent = depthFace })
+	local depth = text("0m", 30, F.Title, C.Text, { Position = UDim2.fromOffset(40, 4), Parent = depthFace })
+	local zone = text("", 14, F.Title, C.Sub, { Size = UDim2.new(1, -18, 0, 18), Position = UDim2.fromOffset(10, 46), AutomaticSize = Enum.AutomaticSize.None, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = depthFace })
+	local guard = text("", 13, F.Title, C.Text, { Size = UDim2.new(1, -18, 0, 16), Position = UDim2.fromOffset(10, 62), AutomaticSize = Enum.AutomaticSize.None, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = depthFace })
+
+	-- air (middle)
+	local airHolder, airFace = pill(root, UDim2.fromOffset(300, 84), UDim2.fromOffset(162, 0))
+	Kit.icon("bubbles", 34, C.Accent, { Position = UDim2.fromOffset(10, 8), Parent = airFace })
+	local airLabel = text("AIR", 22, F.Title, C.Text, { Position = UDim2.fromOffset(52, 8), Parent = airFace })
+	local seconds = text("", 22, F.Title, C.Text, { Position = UDim2.new(1, -14, 0, 8), AnchorPoint = Vector2.new(1, 0), Parent = airFace })
+	local track = make("Frame", { Size = UDim2.new(1, -24, 0, 24), Position = UDim2.fromOffset(12, 48), BackgroundColor3 = C.WellLo, ClipsDescendants = true, Parent = airFace }, { Kit.round(), Kit.outline(3) })
 	local fill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track }, {
 		Kit.round(),
-		make("UIGradient", { Name = "G", Color = ColorSequence.new(C.Accent, C.AccentDeep), Rotation = 0 }),
+		make("UIGradient", { Name = "G", Color = ColorSequence.new(Color3.fromRGB(120, 225, 255), Color3.fromRGB(40, 140, 245)), Rotation = 90 }),
 	})
-	hud = { Holder = holder, Depth = depth, Zone = zone, Seconds = seconds, Fill = fill, Track = track }
+	make("Frame", { Size = UDim2.new(1, -8, 0.35, 0), Position = UDim2.fromOffset(4, 2), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.6, Parent = fill }, { Kit.round() })
+	local airScale = make("UIScale", { Parent = airHolder })
+
+	-- dash (right)
+	local _, dashFace = pill(root, UDim2.fromOffset(86, 84), UDim2.fromOffset(474, 0))
+	local dashFill = make("Frame", { Size = UDim2.fromScale(1, 1), AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), BackgroundColor3 = Kit.Swatch.green[2], BackgroundTransparency = 0.25, Parent = dashFace }, { Kit.corner(18) })
+	Kit.icon("fin", 40, C.Text, { Position = UDim2.new(0.5, 0, 0, 6), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 2, Parent = dashFace })
+	local dashLabel = text("SHIFT", 15, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 1, -24), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = dashFace })
+
+	-- zone banner
+	local banner = make("Frame", { Size = UDim2.fromOffset(520, 92), Position = UDim2.new(0.5, 0, 0, -120), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Parent = gui })
+	make("Frame", { Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, 6), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.3, Parent = banner }, { Kit.corner(20) })
+	local bFace = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true, Parent = banner }, {
+		Kit.corner(20),
+		make("UIGradient", { Name = "G", Rotation = 90 }),
+		Kit.outline(4),
+	})
+	Kit.checker(bFace, 18, 0.9, nil, 520, 92)
+	local bTitle = text("", 36, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 44), Position = UDim2.fromOffset(0, 8), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
+	local bSub = text("", 17, F.Title, C.Text, { Size = UDim2.new(1, 0, 0, 22), Position = UDim2.fromOffset(0, 56), AutomaticSize = Enum.AutomaticSize.None, ZIndex = 2, Parent = bFace })
+
+	hud = {
+		Root = root, Scale = scale, Depth = depth, Zone = zone, Guard = guard, Seconds = seconds, Fill = fill, AirScale = airScale,
+		DashFill = dashFill, DashLabel = dashLabel, AirLabel = airLabel, Banner = banner, BannerGrad = bFace.G, BannerTitle = bTitle, BannerSub = bSub,
+	}
+end
+
+local bannerToken = 0
+local function showZoneBanner(z)
+	bannerToken += 1
+	local token = bannerToken
+	hud.BannerTitle.Text = string.upper(z.Display)
+	hud.BannerSub.Text = string.format("%dm  -  Guardian: %s", math.floor(Zones.Depth(z.Top)), z.Guardian.Name)
+	hud.BannerGrad.Color = ColorSequence.new(z.Fog:Lerp(Color3.new(1, 1, 1), 0.15), z.FogDeep)
+	hud.Banner.Position = UDim2.new(0.5, 0, 0, -120)
+	TweenService:Create(hud.Banner, TweenInfo.new(0.45, Enum.EasingStyle.Back), { Position = UDim2.new(0.5, 0, 0, 180) }):Play()
+	task.delay(2.6, function()
+		if token == bannerToken then
+			TweenService:Create(hud.Banner, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Position = UDim2.new(0.5, 0, 0, -120) }):Play()
+		end
+	end)
+end
+
+-- Look ----------------------------------------------------------------------------------------------
+local function findAtmosphere()
+	local found = Lighting:FindFirstChildOfClass("Atmosphere")
+	if found and found ~= atmosphere then
+		atmosphere = found
+		surfaceAtmo = { Density = found.Density, Haze = found.Haze, Color = found.Color, Decay = found.Decay, Glare = found.Glare }
+	end
 end
 
 local function setUnder(under: boolean)
-	local goalTint = if under then { TintColor = Color3.fromRGB(150, 210, 255), Saturation = -0.05, Contrast = 0.08 } else { TintColor = Color3.new(1, 1, 1), Saturation = 0, Contrast = 0 }
-	Kit.tween(tint, 0.35, goalTint)
-	Kit.tween(blur, 0.35, { Size = if under then 3 else 0 })
-	if atmosphere and surfaceAtmo then
-		if under then
-			Kit.tween(atmosphere, 0.35, { Density = 0.5, Haze = 1.5, Color = Color3.fromRGB(70, 150, 210), Decay = Color3.fromRGB(20, 70, 130) })
-		else
+	if under then
+		Kit.tween(blur, 0.3, { Size = 2 })
+		if atmosphere then
+			Kit.tween(atmosphere, 0.3, { Haze = 2, Glare = 0 })
+		end
+	else
+		Kit.tween(tint, 0.4, { TintColor = Color3.new(1, 1, 1), Saturation = 0, Contrast = 0, Brightness = 0 })
+		Kit.tween(blur, 0.4, { Size = 0 })
+		if atmosphere and surfaceAtmo then
 			Kit.tween(atmosphere, 0.5, surfaceAtmo)
 		end
 	end
 end
 
-local function findAtmosphere()
-	local found = Lighting:FindFirstChildOfClass("Atmosphere")
-	if found and found ~= atmosphere then
-		atmosphere = found
-		surfaceAtmo = { Density = found.Density, Haze = found.Haze, Color = found.Color, Decay = found.Decay }
-	end
+local function splash(pos: Vector3)
+	local holder = Instance.new("Part")
+	holder.Anchored = true
+	holder.CanCollide = false
+	holder.CanQuery = false
+	holder.Transparency = 1
+	holder.Size = Vector3.one
+	holder.Position = pos
+	holder.Parent = workspace
+	local e = Instance.new("ParticleEmitter")
+	e.Color = ColorSequence.new(Color3.fromRGB(225, 245, 255))
+	e.LightEmission = 0.3
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 0.1) })
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	e.Lifetime = NumberRange.new(0.4, 0.8)
+	e.Speed = NumberRange.new(10, 18)
+	e.SpreadAngle = Vector2.new(35, 35)
+	e.EmissionDirection = Enum.NormalId.Top
+	e.Acceleration = Vector3.new(0, -50, 0)
+	e.Rate = 0
+	e.Parent = holder
+	e:Emit(30)
+	task.delay(1.2, function()
+		holder:Destroy()
+	end)
 end
 
-local function step()
+local function step(dt: number)
 	if not atmosphere or not atmosphere.Parent then
 		findAtmosphere()
 	end
 	local camPos = camera.CFrame.Position
-	local under = underwater(camPos)
+	local under = camUnder(camPos)
 	if under ~= wasUnder then
 		wasUnder = under
 		setUnder(under)
 	end
-	if under then
-		local k = math.clamp((Config.WaterLevel - camPos.Y) / 300, 0, 1)
-		tint.Brightness = -0.03 - 0.28 * k
-		tint.TintColor = Color3.fromRGB(150, 210, 255):Lerp(Color3.fromRGB(50, 90, 170), k)
+	local zone = if under then Zones.At(camPos.Y) else nil
+	if under and zone then
+		-- fog colour: the zone's colour at its top, its deep colour at its bottom
+		local k = math.clamp((zone.Top - camPos.Y) / (zone.Top - zone.Bottom), 0, 1)
+		local fog = zone.Fog:Lerp(zone.FogDeep, k)
+		local deep = math.clamp(Zones.Depth(camPos.Y) / 1040, 0, 1)
+		tint.TintColor = fog:Lerp(Color3.new(1, 1, 1), 0.55 - deep * 0.2)
+		tint.Brightness = -0.02 - deep * 0.12
+		tint.Contrast = 0.06 + deep * 0.08
+		tint.Saturation = 0.05
 		if atmosphere then
-			atmosphere.Density = 0.45 + 0.3 * k
-			atmosphere.Color = Color3.fromRGB(70, 150, 210):Lerp(Color3.fromRGB(8, 22, 52), k)
+			atmosphere.Density = 0.42 + deep * 0.28
+			atmosphere.Color = fog
+			atmosphere.Decay = fog:Lerp(Color3.new(0, 0, 0), 0.4)
 		end
 	end
+	-- headlamp below the reef
+	local deepEnough = under and camPos.Y < Zones.List[2].Bottom + 20
+	lamp.Light.Enabled = deepEnough
+	if deepEnough then
+		lamp.Part.CFrame = camera.CFrame
+	end
 
+	if zone ~= lastZone then
+		if zone and lastZone and zone.Index > lastZone.Index then
+			showZoneBanner(zone)
+		elseif zone and not lastZone then
+			showZoneBanner(zone)
+		end
+		lastZone = zone
+	end
+
+	-- splash when your head crosses the surface
 	local char = player.Character
 	local head = char and char:FindFirstChild("Head")
-	local headUnder = head ~= nil and underwater(head.Position)
-	if bubbles then
-		bubbles.Enabled = headUnder
+	if head then
+		local y = head.Position.Y
+		if lastHeadY and math.abs(head.Position.X) < Zones.List[1].Half and math.abs(head.Position.Z) < Zones.List[1].Half then
+			local w = Zones.WaterLevel
+			if (lastHeadY > w and y <= w) or (lastHeadY <= w and y > w) then
+				splash(Vector3.new(head.Position.X, w, head.Position.Z))
+			end
+		end
+		lastHeadY = y
 	end
 
+	-- HUD
 	local air = player:GetAttribute("Oxygen")
 	local maxAir = player:GetAttribute("OxygenMax")
-	local show = headUnder or (air and maxAir and air < maxAir - 0.05)
-	hud.Holder.Visible = show and true or false
+	local headUnder = head ~= nil and Zones.InWater(head.Position + Vector3.new(0, 0.4, 0))
+	local show = (headUnder or (air and maxAir and air < maxAir - 0.05)) and not UI.IsPanelOpen()
+	if show and not hud.Root.Visible then
+		hud.Root.Visible = true
+		hud.Scale.Scale = 0.6
+		Kit.tween(hud.Scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+	elseif not show then
+		hud.Root.Visible = false
+	end
 	if show and head and air and maxAir then
-		local depthStuds = math.max(0, Config.WaterLevel - head.Position.Y)
-		hud.Depth.Text = string.format("%dm", math.floor(depthStuds * 2 + 0.5))
-		local zone = FishPath.ZoneAt(head.Position.Y)
-		hud.Zone.Text = if zone then string.upper(zone.Display) else "SURFACE"
+		hud.Depth.Text = string.format("%dm", math.floor(Zones.Depth(head.Position.Y) + 0.5))
+		local z = Zones.At(head.Position.Y)
+		hud.Zone.Text = if z then string.upper(z.Display) else "SURFACE"
+		if z then
+			local st = Guardians.StateOf(z.Index)
+			hud.Guard.Text = if st == "Sleep" then (z.Guardian.Name .. ": asleep") else (z.Guardian.Name .. ": AWAKE!")
+			hud.Guard.TextColor3 = if st == "Sleep" then Color3.fromRGB(170, 220, 255) else Color3.fromRGB(255, 110, 100)
+		else
+			hud.Guard.Text = ""
+		end
 		local frac = math.clamp(air / math.max(maxAir, 1), 0, 1)
-		hud.Fill.Size = UDim2.fromScale(frac, 1)
-		local C = Kit.Color
-		hud.Fill.G.Color = if frac < 0.25 then ColorSequence.new(C.Danger, C.DangerDeep) else ColorSequence.new(C.Accent, C.AccentDeep)
+		hud.Fill.Size = UDim2.fromScale(math.max(frac, 0.03), 1)
+		local low = frac < 0.25
+		hud.Fill.G.Color = if low then ColorSequence.new(Color3.fromRGB(255, 130, 120), Color3.fromRGB(230, 40, 40)) else ColorSequence.new(Color3.fromRGB(120, 225, 255), Color3.fromRGB(40, 140, 245))
 		hud.Seconds.Text = string.format("%ds", math.ceil(air))
-		hud.Seconds.TextColor3 = if frac < 0.25 then C.Danger else C.Text
+		hud.Seconds.TextColor3 = if low then Kit.Color.Danger else Kit.Color.Text
+		hud.AirLabel.Text = if low then "LOW AIR!" else "AIR"
+		hud.AirLabel.TextColor3 = if low then Kit.Color.Danger else Kit.Color.Text
+		if low and headUnder then
+			hud.AirScale.Scale = 1 + 0.06 * math.sin(os.clock() * 10)
+			lowAirTick -= dt
+			if lowAirTick <= 0 then
+				lowAirTick = 1
+				if Audio then
+					Audio.Play("Tick")
+				end
+			end
+		else
+			hud.AirScale.Scale = 1
+		end
+		local charge = Dive.DashCharge
+		hud.DashFill.Size = UDim2.fromScale(1, charge)
+		hud.DashFill.BackgroundColor3 = if charge >= 1 then Kit.Swatch.green[2] else Kit.Swatch.gray[2]
+		hud.DashLabel.Text = if charge >= 1 then "DASH" else string.format("%.0fs", (1 - charge) * 6)
 	end
 end
 
-local function onCharacter(char: Model)
-	local head = char:WaitForChild("Head", 10)
-	if not head then
-		return
-	end
-	bubbles = Instance.new("ParticleEmitter")
-	bubbles.Name = "Bubbles"
-	bubbles.Color = ColorSequence.new(Color3.fromRGB(220, 245, 255))
-	bubbles.LightEmission = 0.4
-	bubbles.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-	bubbles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.12), NumberSequenceKeypoint.new(1, 0.28) })
-	bubbles.Lifetime = NumberRange.new(1.2, 2)
-	bubbles.Rate = 6
-	bubbles.Speed = NumberRange.new(2, 4)
-	bubbles.SpreadAngle = Vector2.new(25, 25)
-	bubbles.EmissionDirection = Enum.NormalId.Top
-	bubbles.Enabled = false
-	bubbles.Parent = head
-end
-
-function UnderwaterController.Init(uiController)
-	Kit = uiController.Kit
+function UnderwaterController.Init(ui, dive, guardians, audio)
+	UI = ui
+	Kit = ui.Kit
+	Dive = dive
+	Guardians = guardians
+	Audio = audio
 	tint = Instance.new("ColorCorrectionEffect")
 	tint.Name = "UnderwaterTint"
 	tint.Parent = camera
@@ -152,12 +277,27 @@ function UnderwaterController.Init(uiController)
 	blur.Name = "UnderwaterBlur"
 	blur.Size = 0
 	blur.Parent = camera
+	local lampPart = Instance.new("Part")
+	lampPart.Name = "Headlamp"
+	lampPart.Anchored = true
+	lampPart.CanCollide = false
+	lampPart.CanQuery = false
+	lampPart.CanTouch = false
+	lampPart.Transparency = 1
+	lampPart.Size = Vector3.new(0.2, 0.2, 0.2)
+	lampPart.Parent = camera
+	local spot = Instance.new("SpotLight")
+	spot.Face = Enum.NormalId.Front
+	spot.Range = 60
+	spot.Angle = 70
+	spot.Brightness = 2.5
+	spot.Color = Color3.fromRGB(220, 240, 255)
+	spot.Shadows = false
+	spot.Enabled = false
+	spot.Parent = lampPart
+	lamp = { Part = lampPart, Light = spot }
 	findAtmosphere()
-	buildHud(uiController.GetGui())
-	player.CharacterAdded:Connect(onCharacter)
-	if player.Character then
-		task.spawn(onCharacter, player.Character)
-	end
+	buildHud(ui.GetGui())
 	RunService.RenderStepped:Connect(step)
 end
 
