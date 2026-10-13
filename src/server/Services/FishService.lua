@@ -1,5 +1,6 @@
--- Spawns the fish that swim in the pond, checks spear hits and hands out catches.
--- Fish positions come from FishPath segments, so clients draw the same fish with no streaming.
+-- Spawns the creatures that swim in the pit, checks spear hits and hands catches to the
+-- ChaseService (you carry the catch until you escape the water).
+-- Positions come from FishPath segments, so clients draw the same creatures with no streaming.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -9,53 +10,61 @@ local FishData = require(Shared.FishData)
 local FishPath = require(Shared.FishPath)
 local GunData = require(Shared.GunData)
 local Remotes = require(Shared.Remotes)
+local Zones = require(Shared.Zones)
 local DataService = require(script.Parent.DataService)
 
 local FishService = {}
 
-local fishes = {} -- [id] = fish
+local fishes = {} -- [id] = creature
 local nextId = 0
 local rng = Random.new()
 local lastShot: { [Player]: any } = {}
+local ChaseService -- set in Init (avoids a require loop)
 
 local function now()
 	return workspace:GetServerTimeNow()
 end
 
-local function margin(species)
-	return math.max(3, species.Look.L * 0.6)
+local function lengthOf(f)
+	return FishData.ById[f.Species].Look.L * FishData.SizeByName[f.Size].Scale
+end
+
+local function margin(f)
+	return math.max(3, lengthOf(f) * 0.6)
+end
+
+-- Rare creatures stay near their guardian's lair, like eggs around a sleeping beast.
+local function boxFor(zone, species)
+	if FishData.RarityIndex[species.Rarity] < 3 then
+		return zone
+	end
+	local r = Config.LairRadius
+	local lo = Vector3.new(math.max(zone.Min.X, zone.Lair.X - r), zone.Min.Y, math.max(zone.Min.Z, zone.Lair.Z - r))
+	local hi = Vector3.new(math.min(zone.Max.X, zone.Lair.X + r), math.min(zone.Max.Y, zone.Lair.Y + r), math.min(zone.Max.Z, zone.Lair.Z + r))
+	return { Min = lo, Max = hi }
 end
 
 local function snapshot(f)
-	return { Id = f.Id, Species = f.Species, Kg = f.Kg, HP = f.HP, MaxHP = f.MaxHP, Seg = f.Seg }
+	return { Id = f.Id, Species = f.Species, Kg = f.Kg, Size = f.Size, Mut = f.Mut, HP = f.HP, MaxHP = f.MaxHP, Seg = f.Seg }
 end
 
 local function spawnFish(zone)
-	local species, kg = FishData.RollForZone(zone.Name, rng)
+	local species, size, mut, kg = FishData.Roll(zone.Name, rng)
 	local hp = FishData.GetRarity(species.Id).HP
 	nextId += 1
+	local f = { Id = nextId, Species = species.Id, Kg = kg, Size = size, Mut = mut, HP = hp, MaxHP = hp, Zone = zone, Speed = species.Speed, FleeUntil = 0 }
+	f.Box = boxFor(zone, species)
 	local t = now()
-	local f = {
-		Id = nextId,
-		Species = species.Id,
-		Kg = kg,
-		HP = hp,
-		MaxHP = hp,
-		Zone = zone,
-		Speed = species.Speed,
-		Seg = FishPath.NewSegment(rng, zone, FishPath.RandomPoint(rng, zone, margin(species)), t, species.Speed, margin(species)),
-		NextRepath = t + rng:NextNumber(Config.FishRepath[1], Config.FishRepath[2]),
-		FleeUntil = 0,
-	}
+	f.Seg = FishPath.NewSegment(rng, f.Box, FishPath.RandomPoint(rng, f.Box, margin(f)), t, f.Speed, margin(f))
+	f.NextRepath = t + rng:NextNumber(Config.FishRepath[1], Config.FishRepath[2])
 	fishes[f.Id] = f
 	Remotes.FishSpawned:FireAllClients(snapshot(f))
 end
 
 local function repath(f, awayFrom: Vector3?)
 	local t = now()
-	local species = FishData.ById[f.Species]
 	local speed = if t < f.FleeUntil then f.Speed * 2 else f.Speed
-	f.Seg = FishPath.NewSegment(rng, f.Zone, FishPath.Position(f.Seg, t), t, speed, margin(species), awayFrom)
+	f.Seg = FishPath.NewSegment(rng, f.Box, FishPath.Position(f.Seg, t), t, speed, margin(f), awayFrom)
 	f.NextRepath = t + (if awayFrom then Config.FleeTime else rng:NextNumber(Config.FishRepath[1], Config.FishRepath[2]))
 end
 
@@ -66,32 +75,10 @@ local function equippedGun(player: Player)
 	return id and GunData.ById[id]
 end
 
-local function catch(player: Player, f, data)
-	fishes[f.Id] = nil
-	table.insert(data.Inventory, { Id = f.Species, Kg = f.Kg })
-	data.Caught += 1
-	local best = data.Discovered[f.Species]
-	local isNew = best == nil
-	local isRecord = best ~= nil and f.Kg > best
-	if isNew or isRecord then
-		data.Discovered[f.Species] = f.Kg
-	end
-	DataService.Changed(player)
-	Remotes.FishRemoved:FireAllClients(f.Id, player.UserId)
-	Remotes.CatchResult:FireClient(player, true, {
-		Id = f.Species,
-		Kg = f.Kg,
-		Rarity = FishData.ById[f.Species].Rarity,
-		Value = FishData.GetValue(f.Species, f.Kg),
-		New = isNew,
-		Record = isRecord,
-	})
-	if FishData.RarityIndex[FishData.ById[f.Species].Rarity] >= FishData.RarityIndex.Legendary then
-		Remotes.Announce:FireAllClients(player.DisplayName, f.Species, FishData.ById[f.Species].Rarity, f.Kg)
-	end
-	local zone = f.Zone
-	task.delay(Config.FishRespawn, spawnFish, zone)
+local function bagCap(player: Player)
+	return if player:GetAttribute("BigBag") then 150 else Config.InventoryCap
 end
+FishService.BagCap = bagCap
 
 local function onShoot(player: Player, origin, direction)
 	if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" or origin ~= origin or direction ~= direction then
@@ -102,7 +89,7 @@ local function onShoot(player: Player, origin, direction)
 	end
 	local gun = equippedGun(player)
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not gun or not root or (origin - root.Position).Magnitude > 14 then
+	if not gun or not root or (origin - root.Position).Magnitude > 16 then
 		return
 	end
 	local t = now()
@@ -133,25 +120,31 @@ local function onHit(player: Player, fishId, hitTime)
 		return
 	end
 	hitTime = math.clamp(hitTime, shot.Time, t)
-	local species = FishData.ById[f.Species]
 	local pos = FishPath.Position(f.Seg, hitTime)
-	-- The fish must be within the gun's reach of where the spear was fired from.
-	local reach = shot.Gun.Range + species.Look.L * FishData.SizeScale(f.Species, f.Kg) + Config.HitTolerance
-	if (pos - shot.Origin).Magnitude > reach then
+	-- The creature must be within the gun's reach of where the spear was fired from.
+	if (pos - shot.Origin).Magnitude > shot.Gun.Range + lengthOf(f) + Config.HitTolerance then
 		return
 	end
 	local data = DataService.Get(player)
 	if not data then
 		return
 	end
-	if #data.Inventory >= Config.InventoryCap then
-		Remotes.Notify:FireClient(player, "Your bag is full! Sell your fish first.", "error")
+	if ChaseService.IsCarrying(player) then
+		Remotes.Notify:FireClient(player, "Get out of the water to bank your catch first!", "error")
+		return
+	end
+	if #data.Inventory >= bagCap(player) then
+		Remotes.Notify:FireClient(player, "Your bag is full! Sell your catch first.", "error")
 		return
 	end
 	shot.Hits += 1
 	f.HP -= shot.Gun.Damage
 	if f.HP <= 0 then
-		catch(player, f, data)
+		fishes[f.Id] = nil
+		Remotes.FishRemoved:FireAllClients(f.Id, player.UserId)
+		ChaseService.StartCarry(player, { Id = f.Species, Kg = f.Kg, Size = f.Size, Mut = f.Mut }, f.Zone, pos)
+		local zone = f.Zone
+		task.delay(Config.FishRespawn, spawnFish, zone)
 	else
 		f.FleeUntil = t + Config.FleeTime
 		repath(f, shot.Origin)
@@ -160,7 +153,8 @@ local function onHit(player: Player, fishId, hitTime)
 end
 
 function FishService.Init()
-	for _, zone in FishPath.Zones do
+	ChaseService = require(script.Parent.ChaseService)
+	for _, zone in Zones.List do
 		for _ = 1, zone.Count do
 			spawnFish(zone)
 		end
@@ -179,7 +173,7 @@ function FishService.Init()
 		lastShot[player] = nil
 	end)
 
-	-- Fish wander: every so often each one heads somewhere new.
+	-- Creatures wander: every so often each one heads somewhere new.
 	task.spawn(function()
 		while true do
 			task.wait(0.5)

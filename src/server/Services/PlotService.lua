@@ -147,11 +147,12 @@ local function updateTank(player: Player, data)
 	end
 	local items = table.clone(data.Inventory)
 	table.sort(items, function(a, b)
-		return FishData.GetValue(a.Id, a.Kg) > FishData.GetValue(b.Id, b.Kg)
+		return FishData.GetValue(a.Id, a.Kg, a.Size, a.Mut) > FishData.GetValue(b.Id, b.Kg, b.Size, b.Mut)
 	end)
 	local ids = {}
 	for i = 1, math.min(#items, Config.TankMaxFish) do
-		table.insert(ids, items[i].Id)
+		local it = items[i]
+		table.insert(ids, string.format("%s|%s|%s", it.Id, it.Size or "Normal", it.Mut or ""))
 	end
 	plot:SetAttribute("TankFish", table.concat(ids, ","))
 end

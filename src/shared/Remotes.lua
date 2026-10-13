@@ -5,8 +5,9 @@ local RunService = game:GetService("RunService")
 local EVENTS = {
 	"DataChanged", "Notify", "Announce", "CatchResult", "OpenPanel",
 	"Shoot", "SpearFired", "SpearHit", "FishSpawned", "FishUpdated", "FishRemoved",
+	"GuardianState", "ChaseEvent",
 }
-local FUNCTIONS = { "GetData", "GetFish", "SellAll", "BuyGun", "EquipGun", "UpgradeTank" }
+local FUNCTIONS = { "GetData", "GetFish", "SellAll", "BuyGun", "EquipGun", "Upgrade", "CompleteTutorial" }
 
 local Remotes = {}
 local folder

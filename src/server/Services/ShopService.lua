@@ -1,4 +1,4 @@
--- Selling fish, buying/equipping spearguns, upgrading your air tank.
+-- Selling your catch, buying/equipping spearguns, upgrades (air tank, flippers) and the tutorial reward.
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -37,20 +37,33 @@ function ShopService.SellAll(player: Player)
 		return false, "Data not loaded"
 	end
 	if not nearMerchant(player) then
-		return false, "Go to the merchant to sell!"
+		return false, "Go to the Fish Market to sell!"
 	end
 	local total = 0
 	for _, item in data.Inventory do
-		total += FishData.GetValue(item.Id, item.Kg)
+		total += FishData.GetValue(item.Id, item.Kg, item.Size, item.Mut)
 	end
 	if total == 0 then
 		return false, "Nothing to sell"
 	end
+	local mult = 1
+	if player:GetAttribute("VIP") then
+		mult += 0.25
+	end
+	if player:GetAttribute("DoubleCoins") then
+		mult *= 2
+	end
+	total = math.floor(total * mult + 0.5)
 	data.Coins += total
 	table.clear(data.Inventory)
 	DataService.Changed(player)
 	return true, "Sold for " .. Format.Number(total) .. " coins!"
 end
+
+local UPGRADES = {
+	Tank = { Config = Config.Tank, Key = "TankLevel" },
+	Fins = { Config = Config.Fins, Key = "FinLevel" },
+}
 
 function ShopService.Init()
 	Remotes.SellAll.OnServerInvoke = ShopService.SellAll
@@ -86,22 +99,34 @@ function ShopService.Init()
 		return true, "Equipped " .. GunData.ById[gunId].Name
 	end
 
-	Remotes.UpgradeTank.OnServerInvoke = function(player)
+	Remotes.Upgrade.OnServerInvoke = function(player, which)
+		local up = type(which) == "string" and UPGRADES[which]
 		local data = DataService.Get(player)
-		if not data then
-			return false, "Data not loaded"
+		if not up or not data then
+			return false, "Unknown upgrade"
 		end
-		if data.TankLevel >= Config.Tank.MaxLevel then
-			return false, "Your air tank is maxed out"
+		local level = data[up.Key]
+		if level >= up.Config.MaxLevel then
+			return false, up.Config.Name .. " is maxed out"
 		end
-		local cost = Config.Tank.Costs[data.TankLevel]
+		local cost = up.Config.Costs[level]
 		if data.Coins < cost then
 			return false, "Not enough coins"
 		end
 		data.Coins -= cost
-		data.TankLevel += 1
+		data[up.Key] = level + 1
 		DataService.Changed(player)
-		return true, string.format("Air tank upgraded! %ds of air", Config.Tank.Air[data.TankLevel])
+		return true, string.format("%s upgraded to level %d!", up.Config.Name, level + 1)
+	end
+
+	Remotes.CompleteTutorial.OnServerInvoke = function(player)
+		local data = DataService.Get(player)
+		if data and not data.TutorialDone then
+			data.TutorialDone = true
+			data.Coins += 100
+			DataService.Changed(player)
+		end
+		return true
 	end
 
 	-- Merchant prompts on any part tagged "Merchant".
@@ -111,7 +136,7 @@ function ShopService.Init()
 		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.Name = "SellPrompt"
-		prompt.ActionText = "Sell All Fish"
+		prompt.ActionText = "Sell Your Catch"
 		prompt.ObjectText = "Merchant"
 		prompt.HoldDuration = 0.3
 		prompt.RequiresLineOfSight = false
@@ -142,6 +167,25 @@ function ShopService.Init()
 			Remotes.OpenPanel:FireClient(player, "Shop")
 		end)
 	end
+	local function setupPearlShop(part: Instance)
+		if not part:IsA("BasePart") or part:FindFirstChild("StorePrompt") then
+			return
+		end
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "StorePrompt"
+		prompt.ActionText = "Open Pearl Shop"
+		prompt.ObjectText = "Pearl Shop"
+		prompt.RequiresLineOfSight = false
+		prompt.MaxActivationDistance = 14
+		prompt.Parent = part
+		prompt.Triggered:Connect(function(player)
+			Remotes.OpenPanel:FireClient(player, "Store")
+		end)
+	end
+	for _, part in CollectionService:GetTagged(Config.PearlShopTag) do
+		setupPearlShop(part)
+	end
+	CollectionService:GetInstanceAddedSignal(Config.PearlShopTag):Connect(setupPearlShop)
 	for _, part in CollectionService:GetTagged(Config.GearShopTag) do
 		setupGearShop(part)
 	end

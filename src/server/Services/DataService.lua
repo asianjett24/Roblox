@@ -30,10 +30,16 @@ local function defaultData()
 		Coins = Config.StartingCoins,
 		Gun = "Wooden",
 		OwnedGuns = { Wooden = true },
-		Inventory = {}, -- { {Id=string, Kg=number}, ... }
-		Discovered = {}, -- [fishId] = best kg
+		Inventory = {}, -- { {Id, Kg, Size, Mut}, ... }
+		Discovered = {}, -- [fishId] = { Best = kg, Count = n, Sizes = {}, Muts = {} }
 		Caught = 0,
+		Escapes = 0,
+		Bitten = 0,
 		TankLevel = 1,
+		FinLevel = 1,
+		Repellent = 0,
+		ZoneRewards = {},
+		TutorialDone = false,
 	}
 end
 
