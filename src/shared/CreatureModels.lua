@@ -248,6 +248,15 @@ local function buildFishLike(B, L, kind)
 	end, colorOf, if look.Glow and look.Pattern == "spots" then function(k, i, s)
 		return colorOf(k, i, s) == (look.Accent or look.Fin)
 	end else nil)
+	-- round fish start with an open ring: close the nose with a blunt point
+	local nose = rings[1]
+	if nose.w > 0 or nose.h > 0 then
+		local front = ring(nose, sides)
+		local tip = Vector3.new(0, nose.y or 0, nose.z - 0.05 * L)
+		for i = 0, sides - 1 do
+			B:tri("body", front[(i + 1) % sides], front[i], tip, Poly.Shade(look.Body, 0.04))
+		end
+	end
 	-- cap the peduncle so the body looks closed from behind
 	local cap = ring(peduncle, sides)
 	local capPoint = Vector3.new(0, peduncle.y, pz + 0.02 * L)
@@ -405,18 +414,30 @@ local function buildFlat(B, L)
 	B:tri("body", N, CL, Bt, belly)
 	B:tri("body", Bt, P, CR, Poly.Shade(belly, -0.08))
 	B:tri("body", Bt, CL, P, Poly.Shade(belly, -0.08))
-	local rng = B.Rng
 	for _, sx in { -1, 1 } do
 		local name = if sx < 0 then "finL" else "finR"
 		local edge = if sx < 0 then CL else CR
 		B:group(name, CFrame.new(edge))
 		local tip = Vector3.new(sx * span, 0, 0.02 * L)
 		local mid = Vector3.new(sx * span * 0.55, Hh * 0.25, -0.2 * L)
-		local spotted = look.Pattern == "spots"
 		B:tri(name, N, edge, mid, top)
 		B:tri(name, edge, P, mid, Poly.Shade(top, -0.05))
-		B:tri(name, mid, P, tip, if spotted and rng:NextNumber() < 0.5 then (look.Accent or top) else Poly.Shade(top, 0.06))
-		B:tri(name, N, mid, tip, if spotted and rng:NextNumber() < 0.5 then (look.Accent or top) else top)
+		B:tri(name, mid, P, tip, Poly.Shade(top, 0.06))
+		B:tri(name, N, mid, tip, top)
+		if look.Pattern == "spots" and look.Accent then
+			-- small matching patches on both wings, just above the surface
+			local lift = Vector3.new(0, math.max(0.03 * L * 0.1, 0.06), 0)
+			local function at(a, b, c, u, v)
+				return a * (1 - u - v) + b * u + c * v + lift
+			end
+			for _, spot in { { 0.2, 0.25 }, { 0.45, 0.3 }, { 0.3, 0.55 } } do
+				local u, v = spot[1], spot[2]
+				local d = 0.15
+				B:tri(name, at(edge, mid, P, u, v), at(edge, mid, P, u + d, v), at(edge, mid, P, u, v + d), look.Accent)
+			end
+			local u, v = 0.3, 0.3
+			B:tri(name, at(N, mid, tip, u, v), at(N, mid, tip, u + 0.24, v), at(N, mid, tip, u, v + 0.2), look.Accent)
+		end
 	end
 	-- Whip tail
 	B:group("tail", CFrame.new(P))
@@ -672,9 +693,9 @@ function CreatureModels.Build(id, opts)
 			L = g.L, H = 0.22, W = 0.2, Tail = "crescent", Dorsal = "tall", Teeth = true,
 		}
 		if kind == "eel" then
-			look.H, look.W, look.Tail, look.Pattern = 0.07, 0.06, "point", "spots"
+			look.H, look.W, look.Tail, look.Pattern = 0.1, 0.085, "point", "spots"
 		elseif kind == "serpent" then
-			look.H, look.W, look.Horns, look.Spines, look.Glow = 0.06, 0.055, true, true, true
+			look.H, look.W, look.Horns, look.Spines, look.Glow = 0.11, 0.1, true, true, true
 		elseif kind == "kraken" then
 			look.H, look.W, look.Arms, look.LongArms = 0.3, 0.32, 8, true
 		end

@@ -9,7 +9,7 @@
 -- The game also rebuilds an out-of-date map automatically when you press Play.
 -- WARNING: wipes Terrain and replaces the "Map" folder.
 
-local MAP_VERSION = 7
+local MAP_VERSION = 8
 
 local function build()
 	local CollectionService = game:GetService("CollectionService")
@@ -421,8 +421,8 @@ local function build()
 			return if rng:NextInteger(0, 1) == 0 then t else -t, s
 		end
 		local Z = Zones.List
-		-- Sunlit Shallows: kelp, starfish and pale rocks on sand
-		for _ = 1, 46 do
+		-- Sunlit Shallows: kelp, starfish, coral, anemones and pale rocks on sand
+		for _ = 1, 84 do
 			local x, zz = shelfPoint(Z[1], 3)
 			local base = Vector3.new(x, Z[1].Bottom + 0.5, zz)
 			local h = rng:NextNumber(14, 34)
@@ -449,9 +449,47 @@ local function build()
 			local x, zz = shelfPoint(Z[1], 4)
 			Poly.Rock(CFrame.new(x, Z[1].Bottom + 1.5, zz), Vector3.new(rng:NextNumber(4, 9), rng:NextNumber(3, 6), rng:NextNumber(4, 9)), rgb(170, 160, 140), rng, { Parent = fDecor })
 		end
-		-- Coral Reef: coral heads and branching coral
-		local corals = { rgb(255, 110, 140), rgb(255, 170, 70), rgb(170, 110, 255), rgb(80, 220, 210), rgb(255, 220, 90) }
+		local bright = { rgb(255, 120, 150), rgb(255, 190, 70), rgb(120, 230, 210), rgb(190, 130, 255), rgb(255, 150, 90) }
 		for _ = 1, 28 do
+			local x, zz = shelfPoint(Z[1], 4)
+			local col = bright[rng:NextInteger(1, #bright)]
+			local base = CFrame.new(x, Z[1].Bottom, zz)
+			for b = 0, 3 do
+				local a = b * 1.6 + rng:NextNumber(0, 0.8)
+				local lean = CFrame.Angles(math.cos(a) * 0.35, 0, math.sin(a) * 0.35)
+				Poly.Cone(base * CFrame.new(math.cos(a) * 1.1, 0, math.sin(a) * 1.1) * lean, rng:NextNumber(0.5, 0.8), rng:NextNumber(2.5, 6), 4, Poly.Shade(col, b * 0.05), { Parent = fDecor }, rng)
+			end
+		end
+		-- anemones: a ring of short tentacles on a little disc
+		for _ = 1, 16 do
+			local x, zz = shelfPoint(Z[1], 4)
+			local c = Vector3.new(x, Z[1].Bottom + 0.6, zz)
+			local col = ({ rgb(255, 120, 200), rgb(140, 255, 160), rgb(255, 220, 120) })[rng:NextInteger(1, 3)]
+			for t = 0, 7 do
+				local a = t / 8 * math.pi * 2
+				local d = Vector3.new(math.cos(a), 0, math.sin(a))
+				tri(c + d * 0.9 + Vector3.new(0, 0, 0.25), c + d * 0.9 - Vector3.new(0, 0, 0.25), c + d * 1.7 + Vector3.new(0, rng:NextNumber(1.6, 2.6), 0), Poly.Shade(col, (t % 2) * 0.08), fDecor)
+			end
+			Poly.Cone(CFrame.new(c - Vector3.new(0, 0.6, 0)), 1.2, 0.8, 6, Poly.Shade(col, -0.25), { Parent = fDecor }, rng)
+		end
+		-- Coral Reef: coral heads, branching coral and sea fans
+		local corals = { rgb(255, 110, 140), rgb(255, 170, 70), rgb(170, 110, 255), rgb(80, 220, 210), rgb(255, 220, 90) }
+		for _ = 1, 22 do
+			local x, zz = shelfPoint(Z[2], 4)
+			local col = corals[rng:NextInteger(1, #corals)]
+			local base = Vector3.new(x, Z[2].Bottom, zz)
+			local a = rng:NextNumber(0, math.pi * 2)
+			local side = Vector3.new(math.cos(a), 0, math.sin(a))
+			local h = rng:NextNumber(5, 10)
+			for f = -2, 2 do
+				local tipA = base + side * (f * h * 0.22) + Vector3.new(0, h * (1 - math.abs(f) * 0.12), 0)
+				local tipB = base + side * ((f + 1) * h * 0.22) + Vector3.new(0, h * (1 - math.abs(f + 1) * 0.12), 0)
+				if f < 2 then
+					tri(base, tipA, tipB, Poly.Shade(col, (f % 2) * 0.08), fDecor)
+				end
+			end
+		end
+		for _ = 1, 56 do
 			local x, zz = shelfPoint(Z[2], 4)
 			local col = corals[rng:NextInteger(1, #corals)]
 			local base = CFrame.new(x, Z[2].Bottom, zz)
@@ -490,6 +528,22 @@ local function build()
 				for _, sx in { -1, 1 } do
 					tri(base * Vector3.new(0, 0.5, z), base * Vector3.new(0, 0.5, z + 0.8), base * Vector3.new(sx * 5, 6 - math.abs(r - 3) * 0.6, z + 0.4), rgb(235, 230, 215), fDecor)
 				end
+			end
+		end
+		-- Rock outcrops on every zone's walls so they aren't flat
+		for k, z in ipairs(Z) do
+			local count = if k == #Z then 8 else 14
+			for _ = 1, count do
+				local along = rng:NextNumber(-z.Half + 10, z.Half - 10)
+				local y = rng:NextNumber(z.Bottom + 8, z.Top - 6)
+				local side = rng:NextInteger(1, 4)
+				local inset = z.Half - 2.5
+				local p = if side == 1 then Vector3.new(inset, y, along)
+					elseif side == 2 then Vector3.new(-inset, y, along)
+					elseif side == 3 then Vector3.new(along, y, inset)
+					else Vector3.new(along, y, -inset)
+				local size = Vector3.new(rng:NextNumber(12, 24), rng:NextNumber(8, 16), rng:NextNumber(12, 24))
+				Poly.Rock(CFrame.new(p) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0), size, Poly.Shade(z.Wall, rng:NextNumber(-0.08, 0.1)), rng, { Parent = fDecor })
 			end
 		end
 		-- Leviathan's Rift: ruined pillars and purple crystals
