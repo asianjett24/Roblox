@@ -154,8 +154,16 @@ local function endDash()
 	dashBase = nil
 end
 
+local touchDown = false -- the DOWN touch button (phones)
+
 local function bindDash(on: boolean)
 	if on then
+		ContextActionService:BindAction("SwimDown", function(_, state)
+			touchDown = state == Enum.UserInputState.Begin or state == Enum.UserInputState.Change
+			return Enum.ContextActionResult.Pass
+		end, true)
+		ContextActionService:SetTitle("SwimDown", "DOWN")
+		ContextActionService:SetPosition("SwimDown", UDim2.new(1, -250, 1, -110))
 		ContextActionService:BindAction("DiveDash", function(_, state)
 			if state == Enum.UserInputState.Begin then
 				dash()
@@ -166,6 +174,8 @@ local function bindDash(on: boolean)
 		ContextActionService:SetPosition("DiveDash", UDim2.new(1, -170, 1, -150))
 	else
 		ContextActionService:UnbindAction("DiveDash")
+		ContextActionService:UnbindAction("SwimDown")
+		touchDown = false
 	end
 end
 
@@ -277,7 +287,7 @@ local function swimStep(dt: number, humanoid: Humanoid, head: BasePart, root: Ba
 	if humanoid.Jump or held(Enum.KeyCode.Space, Enum.KeyCode.ButtonA) then
 		dir += Vector3.new(0, 1, 0)
 	end
-	if held(Enum.KeyCode.LeftControl, Enum.KeyCode.C, Enum.KeyCode.ButtonL2) then
+	if touchDown or held(Enum.KeyCode.LeftControl, Enum.KeyCode.C, Enum.KeyCode.ButtonL2) then
 		dir -= Vector3.new(0, 1, 0)
 	end
 	if dir.Magnitude > 1 then

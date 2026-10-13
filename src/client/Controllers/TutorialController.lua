@@ -145,7 +145,8 @@ local function run()
 		{
 			Id = "dive", Icon = "down", Swatch = "blue",
 			Title = "Jump in the water",
-			Body = "Follow the arrow and swim down. Underwater you'll see in first person.",
+			Body = if UserInputService.TouchEnabled then "Follow the arrow and jump in. Look down and push forward to dive, or hold DOWN."
+				else "Follow the arrow and jump in. W swims where you look, Space goes up, Ctrl goes down.",
 			Marker = function()
 				return nearestWater(), "JUMP IN!"
 			end,

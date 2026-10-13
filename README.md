@@ -3,7 +3,8 @@
 A low-poly Roblox spearfishing game. Dive into a huge stepped ocean pit, spear sea creatures (from sardines to krakens and leviathans), and get your catch out of the water before the zone's guardian catches you.
 
 ## Gameplay
-- **The chase:** every zone has four guardians, one sleeping in each corner of the zone floor. Spear a creature and you carry it on your back. The nearest guardian wakes up (and any other close enough to notice) and hunts you, lunging when it gets close. Get your head out of the water to bank the catch. If it bites you, you take damage and your catch swims away.
+- **The chase:** every zone has four guardians, one sleeping in each corner of the zone floor. Spear a creature and you carry it on your back. The nearest guardian wakes up (and any other close enough to notice) and hunts you, lunging when it gets close. Get your head out of the water to bank the catch. If it bites you, you take damage and your catch swims away. Escaping with a guardian right behind you is a **close call** and pays 25% extra.
+- **Bounties:** you always have one bounty creature (shown on the right of the screen, and marked BOUNTY in the water). Banking it pays three times its value, then a new bounty rolls.
 - **Zones and guardians:** Sunlit Shallows (Reef Shark), Coral Reef (Giant Moray), Twilight Trench (Great Hammerhead), The Abyss (The Kraken) and Leviathan's Rift (Ancient Leviathan). Each zone has its own fog colour. Deeper zones have rarer creatures and faster guardians.
 - **Creatures:** 31 species, including sharks, squids, rays, a turtle, eels, a sea dragon, a Megalodon Pup, a Kraken Spawn and a Leviathan Hatchling. The rarest ones swim near the guardian's lair.
 - **Sizes and mutations:** every catch rolls a size (Tiny, Normal, Large, Giant, Colossal) and can roll a mutation (Golden, Albino, Shadow, Neon, Rainbow). Both multiply its value.
@@ -13,7 +14,8 @@ A low-poly Roblox spearfishing game. Dive into a huge stepped ocean pit, spear s
 - **Pearl Shop:** Robux game passes and products. They show "Soon" until you put real IDs in `Config.lua` (see below).
 
 ## Controls
-- **Click**: fire. Diving takes out your speargun and switches to first person (**1** also holds or puts it away).
+- **Click**: fire. The spear curves onto the creature under your crosshair. Diving takes out your speargun and switches to first person (**1**, or the speargun slot at the bottom, holds or puts it away).
+- Underwater, **W** swims where you look, **Space** swims up, **Ctrl** or **C** swims down (the **DOWN** button on mobile). At the surface, Ctrl/C ducks you under.
 - **Shift** (or the **DASH** button on mobile): burst of speed underwater, with a cooldown.
 - **B** Bag, **V** Shop, **X** Index, **P** Pearl Shop.
 
@@ -35,7 +37,10 @@ The menus use a texture sheet with real icons and halftone patterns: `assets/ui/
 3. Find `ui_atlas` under **Images** in the Asset Manager, right-click it and choose **Copy Asset ID** (or **Copy ID to Clipboard**).
 4. Open `src/shared/Config.lua` in a text editor and paste it into the line `Config.UIAtlasId = 0` (for example `Config.UIAtlasId = "rbxassetid://123456789"`). Save. Rojo sends it to Studio.
 
-Until you do this (or if Roblox is still checking the image), the game uses colour emoji icons instead, so nothing breaks. If the Output window says the atlas couldn't load: publish the place (**File → Publish to Roblox**), check that the image you uploaded is `assets/ui/ui_atlas.png`, and give Roblox a few minutes to approve it.
+Until you do this (or if Roblox is still checking the image), the game uses colour emoji icons instead, so nothing breaks. If the Output window says the atlas couldn't load:
+- A **Decal** ID (what the Creator Hub shows after uploading there) is fine: the game looks up its image by itself. If it still fails, copy the ID from the Asset Manager instead (step 3).
+- Publish the place (**File → Publish to Roblox**). New uploads often only load in a published place.
+- Check that the image you uploaded is `assets/ui/ui_atlas.png`, and give Roblox a few minutes to approve it.
 Icons are from game-icons.net (CC BY 3.0), credited in `assets/ui/CREDITS.md` and on the title screen. To change the sheet, edit and run `assets/ui/build_atlas.py`, then upload the new PNG.
 
 ## Robux shop
@@ -51,7 +56,7 @@ All balance numbers are in `src/shared`:
 ## Code layout
 ```
 src/shared       -> ReplicatedStorage.Shared       (data, zones, fish paths, low-poly geometry, creature and speargun models, remotes)
-src/server       -> ServerScriptService.Server     (Map, Data, Plot, Gear, Shop, Store, Diver, Chase, Fish services)
+src/server       -> ServerScriptService.Server     (Atlas, Map, Data, Plot, Gear, Shop, Store, Diver, Bounty, Chase, Fish services)
 src/client       -> StarterPlayerScripts.Client    (UIKit, Audio, controllers for UI, water, fish, diving, spear, guardians, underwater, intro, tutorial)
 map/BuildMap.lua -> ServerStorage.BuildMap
 ```
