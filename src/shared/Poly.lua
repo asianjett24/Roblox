@@ -162,39 +162,30 @@ function Poly.Frustum(cf: CFrame, r0: number, r1: number, h: number, sides: numb
 	end
 end
 
--- Faceted blob (squashed icosahedron-like ball), good for tree canopies and coral.
+-- Faceted blob: a jittered double cone with a mid ring (20 triangles). Tree canopies, coral, bushes.
 function Poly.Blob(cf: CFrame, size: Vector3, color: Color3, rng: Random, props)
 	props = table.clone(props or {})
-	local rings = { { y = 0.5, r = 0 }, { y = 0.25, r = 0.85 }, { y = -0.15, r = 1 }, { y = -0.5, r = 0.55 } }
-	local sides = 6
-	local pts = {}
-	for k, ring in rings do
-		pts[k] = {}
-		local offset = if k % 2 == 0 then math.pi / sides else 0
-		for i = 0, sides - 1 do
-			local a = i / sides * math.pi * 2 + offset
-			local jitter = if ring.r > 0 then rng:NextNumber(0.88, 1.08) else 1
-			pts[k][i] = cf * Vector3.new(math.cos(a) * size.X * 0.5 * ring.r * jitter, size.Y * ring.y, math.sin(a) * size.Z * 0.5 * ring.r * jitter)
-		end
-	end
-	for k = 1, #rings - 1 do
-		for i = 0, sides - 1 do
-			local j = (i + 1) % sides
-			local light = 0.12 - k * 0.07
-			props.Color = Poly.Shade(color, light + rng:NextNumber(-0.05, 0.05))
-			if k == 1 then
-				Poly.Triangle(pts[1][0], pts[2][i], pts[2][j], props)
-			else
-				Poly.Quad(pts[k][i], pts[k + 1][i], pts[k + 1][j], pts[k][j], props)
-			end
-		end
-	end
-	-- close the bottom
+	local sides = 5
+	local top = cf * Vector3.new(0, size.Y * 0.5, 0)
 	local bottom = cf * Vector3.new(0, -size.Y * 0.5, 0)
+	local upper, lower = {}, {}
+	for i = 0, sides - 1 do
+		local a = i / sides * math.pi * 2
+		local b = a + math.pi / sides
+		local j1, j2 = rng:NextNumber(0.9, 1.08), rng:NextNumber(0.9, 1.08)
+		upper[i] = cf * Vector3.new(math.cos(a) * size.X * 0.5 * j1, size.Y * 0.12, math.sin(a) * size.Z * 0.5 * j1)
+		lower[i] = cf * Vector3.new(math.cos(b) * size.X * 0.4 * j2, -size.Y * 0.22, math.sin(b) * size.Z * 0.4 * j2)
+	end
 	for i = 0, sides - 1 do
 		local j = (i + 1) % sides
-		props.Color = Poly.Shade(color, -0.25)
-		Poly.Triangle(bottom, pts[#rings][j], pts[#rings][i], props)
+		props.Color = Poly.Shade(color, 0.12 + rng:NextNumber(-0.04, 0.04))
+		Poly.Triangle(top, upper[j], upper[i], props)
+		props.Color = Poly.Shade(color, rng:NextNumber(-0.04, 0.04))
+		Poly.Triangle(upper[i], upper[j], lower[i], props)
+		props.Color = Poly.Shade(color, -0.08 + rng:NextNumber(-0.04, 0.04))
+		Poly.Triangle(upper[j], lower[j], lower[i], props)
+		props.Color = Poly.Shade(color, -0.22)
+		Poly.Triangle(bottom, lower[i], lower[j], props)
 	end
 end
 
