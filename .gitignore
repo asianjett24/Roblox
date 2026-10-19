@@ -6,3 +6,6 @@
 *.rbxlx.lock
 sourcemap.json
 tools/
+vault/.obsidian/workspace.json
+vault/.obsidian/workspaces.json
+vault/.obsidian/cache

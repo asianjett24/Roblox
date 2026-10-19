@@ -1,0 +1,13 @@
+# Glossary
+- **GDD:** game design document. One document describing the whole game plan.
+- **Core loop:** the action cycle players repeat (for example: spear, flee, bank).
+- **MVP / minimum version:** the smallest version that is fun to play.
+- **CCU:** concurrent users, how many play at the same moment.
+- **DAU:** daily active users, different players per day.
+- **Day-1 retention:** share of new players who come back the next day.
+- **Average playtime:** how long a player stays per visit.
+- **Funnel:** an ordered list of steps with the share of players finishing each one. It shows where players leave.
+- **CTR:** click-through rate, clicks divided by views of an ad or thumbnail.
+- **Highly engaged player:** per the developer in [[3 Testing and Release]], a 16+ player who has spent Robux on some Roblox game and plays yours. Roblox uses this for the all-ages release requirement. Verify the current numbers.
+- **Onboarding:** how a new player learns the game in the first minutes.
+- **Experience page:** the game's page on Roblox (icon, thumbnails, title, description, trailer).
