@@ -1,9 +1,0 @@
-{
-  "name": "CastleFishing",
-  "tree": {
-    "$className": "Folder",
-    "Shared": { "$path": "src/shared" },
-    "Server": { "$path": "src/server" },
-    "Client": { "$path": "src/client" }
-  }
-}

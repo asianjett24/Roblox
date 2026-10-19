@@ -1,11 +1,3 @@
-*.rbxl
-!CastleFishing.rbxm
-!BuildMap.rbxm
-*.rbxlx
-*.rbxl.lock
-*.rbxlx.lock
-sourcemap.json
-tools/
-vault/.obsidian/workspace.json
-vault/.obsidian/workspaces.json
-vault/.obsidian/cache
+.obsidian/workspace.json
+.obsidian/workspaces.json
+.obsidian/cache
